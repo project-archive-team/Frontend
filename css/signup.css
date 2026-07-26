@@ -1,0 +1,108 @@
+/* --- [회원가입 전용] 오른쪽 패널 내부 양식 --- */
+.login-wrapper {
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem;
+}
+
+.login-wrapper h2 {
+  font-size: 2rem;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  text-align: center;
+  color: #666;
+  margin-bottom: 2.5rem;
+  font-size: 0.95rem;
+}
+
+.input-group {
+  margin-bottom: 1.5rem;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+  background-color: #fafafa;
+}
+
+.input-group input:focus {
+  border-color: #74a7d5;
+  background-color: #fff;
+}
+
+/* --- [회원가입 전용] 인증번호 버튼 가로 배치 스타일 --- */
+.input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-action {
+  flex-shrink: 0;
+  width: 100px;
+  padding: 0 1rem;
+  background-color: #e0e0e0;
+  color: #333;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-action:hover {
+  background-color: #d0d0d0;
+}
+
+/* --- [회원가입 전용] 제출 버튼 및 하단 이동 링크 --- */
+.btn-login {
+  width: 100%;
+  padding: 1rem;
+  background-color: #1a1f36;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.btn-login:hover {
+  background-color: #111424;
+}
+
+.signup-link {
+  text-align: center;
+  margin-top: 2rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.signup-link a {
+  color: #74a7d5;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.signup-link a:hover {
+  text-decoration: underline;
+}
