@@ -1,0 +1,629 @@
+import React, { useState } from 'react';
+import {
+  Github,
+  HardDrive,
+  BookOpen,
+  UploadCloud,
+  FileText,
+  FileCode,
+  CheckCircle2,
+  RefreshCw,
+  Plus,
+  Trash2,
+  Search,
+  ExternalLink,
+  Code2,
+  FileSpreadsheet,
+  Zap,
+  Tag
+} from 'lucide-react';
+import { Project, ProjectArtifact } from '../types';
+import { apiService } from '../services/api';
+
+interface SourceConnectorViewProps {
+  projects: Project[];
+  selectedProjectId: string;
+  setSelectedProjectId: (id: string) => void;
+  artifacts: ProjectArtifact[];
+  onAddArtifact: (artifact: Omit<ProjectArtifact, 'id' | 'timestamp'>) => void;
+  onDeleteArtifact: (id: string) => void;
+}
+
+export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
+  projects,
+  selectedProjectId,
+  setSelectedProjectId,
+  artifacts,
+  onAddArtifact,
+  onDeleteArtifact,
+}) => {
+  const [activeService, setActiveService] = useState<'github' | 'drive' | 'notion' | 'upload'>('upload');
+  
+  // Custom File Upload Form State
+  const [fileTitle, setFileTitle] = useState('');
+  const [fileType, setFileType] = useState<'code' | 'document' | 'meeting_note' | 'architecture'>('document');
+  const [fileContent, setFileContent] = useState('');
+  const [tagsInput, setTagsInput] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [artifactTypeFilter, setArtifactTypeFilter] = useState<'ALL' | 'COMMIT' | 'CODE' | 'DOC' | 'MEETING'>('ALL');
+
+  // Notion Integration State
+  const [notionTokenInput, setNotionTokenInput] = useState('');
+  const [notionWorkspaceInput, setNotionWorkspaceInput] = useState('');
+  const [notionStatus, setNotionStatus] = useState<any>({
+    connected: true,
+    workspaceName: '개발자 개인 아카이브 노션',
+    tokenMasked: 'secret_notion_****_89a1',
+  });
+  const [isSavingNotion, setIsSavingNotion] = useState(false);
+
+  // Async Sync State (HTTP 202)
+  const [isSyncingAsync, setIsSyncingAsync] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<number | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string>('');
+
+  const currentProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
+  const currentArtifacts = artifacts.filter((a) => a.projectId === selectedProjectId);
+
+  const handleSaveNotionToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notionTokenInput) return;
+    setIsSavingNotion(true);
+    try {
+      const res = await apiService.integrations.setNotionToken(notionTokenInput, notionWorkspaceInput);
+      setNotionStatus({
+        connected: true,
+        workspaceName: res?.workspaceName || notionWorkspaceInput || '연결된 노션 워크스페이스',
+        tokenMasked: `secret_notion_****_${notionTokenInput.slice(-4)}`,
+        lastSyncedAt: new Date().toISOString(),
+      });
+      setNotionTokenInput('');
+      alert('Notion 토큰 설정이 성공적으로 백엔드(PUT /api/integrations/notion)에 저장되었습니다.');
+    } catch (err) {
+      console.error(err);
+      alert('Notion 토큰 저장 중 오류가 발생했습니다.');
+    } finally {
+      setIsSavingNotion(false);
+    }
+  };
+
+  const handleTriggerAsyncSync = async () => {
+    setIsSyncingAsync(true);
+    setSyncProgress(10);
+    setSyncMessage('HTTP 202 Accepted: 백엔드 수집 비동기 작업이 생성되었습니다.');
+
+    try {
+      await apiService.projects.startSync(selectedProjectId);
+      setSyncProgress(40);
+      setSyncMessage('소스 파이프라인 진행 중...');
+
+      setTimeout(async () => {
+        setSyncProgress(80);
+        await apiService.projects.getSyncStatus(selectedProjectId);
+        setSyncProgress(100);
+        setSyncMessage('수집 완료! 최신 산출물이 업데이트되었습니다.');
+        setTimeout(() => {
+          setIsSyncingAsync(false);
+          setSyncProgress(null);
+        }, 1500);
+      }, 1200);
+    } catch (err) {
+      console.error(err);
+      setIsSyncingAsync(false);
+      setSyncProgress(null);
+    }
+  };
+
+  const filteredArtifacts = currentArtifacts.filter((a) => {
+    // Artifact type mapping filter (COMMIT | CODE | DOC | MEETING)
+    if (artifactTypeFilter !== 'ALL') {
+      if (artifactTypeFilter === 'COMMIT' && a.type !== 'commit') return false;
+      if (artifactTypeFilter === 'CODE' && a.type !== 'code') return false;
+      if (artifactTypeFilter === 'DOC' && a.type !== 'document' && a.type !== 'architecture') return false;
+      if (artifactTypeFilter === 'MEETING' && a.type !== 'meeting_note') return false;
+    }
+
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      a.title.toLowerCase().includes(q) ||
+      a.content.toLowerCase().includes(q) ||
+      a.tags.some((t) => t.toLowerCase().includes(q))
+    );
+  });
+
+  const handleFileUpload = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fileTitle.trim() || !fileContent.trim()) return;
+
+    setIsUploading(true);
+    setUploadProgress(20);
+
+    const timer1 = setTimeout(() => setUploadProgress(65), 300);
+    const timer2 = setTimeout(() => {
+      setUploadProgress(100);
+      onAddArtifact({
+        projectId: selectedProjectId,
+        title: fileTitle,
+        type: fileType,
+        content: fileContent,
+        author: '김개발 (사용자)',
+        tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
+      });
+
+      // Reset
+      setFileTitle('');
+      setFileContent('');
+      setTagsInput('');
+      setIsUploading(false);
+      setUploadProgress(0);
+    }, 700);
+  };
+
+  return (
+    <div className="space-y-8 animate-fadeIn break-keep">
+      {/* Top Banner */}
+      <div className="bg-white rounded-2xl p-6 md:p-8 border border-slate-200 shadow-xs space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-800 border border-slate-200 text-xs font-bold mb-2 whitespace-nowrap">
+              <Zap className="w-3.5 h-3.5 text-slate-700" />
+              멀티 소스 인제스천 파이프라인
+            </div>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight break-keep">
+              외부 저장소 연동 및 파일 수집
+            </h1>
+            <p className="text-xs text-slate-500 max-w-xl mt-1 break-keep">
+              GitHub 레포지토리, Google Drive, Notion 문서와 직접 업로드한 PPT/PDF/MD 산출물을 모아 AI 학습 맥락으로 활용합니다.
+            </p>
+          </div>
+
+          {/* Project Selector */}
+          <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 shrink-0">
+            <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">대상 프로젝트:</span>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              className="bg-white px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900"
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* External Storage Connector Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* GitHub Card */}
+        <div
+          onClick={() => setActiveService('github')}
+          className={`cursor-pointer bg-white p-5 rounded-2xl border transition-all duration-200 ${
+            activeService === 'github'
+              ? 'border-slate-900 ring-2 ring-slate-900/10 shadow-md'
+              : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-xl bg-slate-900 text-white">
+              <Github className="w-5 h-5" />
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              연동 완료
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-slate-900 mb-1">GitHub</h3>
+          <p className="text-xs text-slate-500 line-clamp-2">
+            커밋 히스토리, PR 및 소스 코드를 실시간 동기화합니다.
+          </p>
+        </div>
+
+        {/* Google Drive Card */}
+        <div
+          onClick={() => setActiveService('drive')}
+          className={`cursor-pointer bg-white p-5 rounded-2xl border transition-all duration-200 ${
+            activeService === 'drive'
+              ? 'border-slate-900 ring-2 ring-slate-900/10 shadow-md'
+              : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-xl bg-slate-100 text-slate-900 border border-slate-200">
+              <HardDrive className="w-5 h-5 text-slate-800" />
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              연동 완료
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-slate-900 mb-1">Google Drive</h3>
+          <p className="text-xs text-slate-500 line-clamp-2">
+            발표 슬라이드(PPT), 프로젝트 기획서(PDF) 자동 로드.
+          </p>
+        </div>
+
+        {/* Notion Card */}
+        <div
+          onClick={() => setActiveService('notion')}
+          className={`cursor-pointer bg-white p-5 rounded-2xl border transition-all duration-200 ${
+            activeService === 'notion'
+              ? 'border-slate-900 ring-2 ring-slate-900/10 shadow-md'
+              : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-xl bg-slate-100 text-slate-900 border border-slate-200">
+              <BookOpen className="w-5 h-5 text-slate-800" />
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              연동 완료
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-slate-900 mb-1">Notion Workspace</h3>
+          <p className="text-xs text-slate-500 line-clamp-2">
+            팀 회의록, 기술 사양서 및 데일리 스크럼 블록 수집.
+          </p>
+        </div>
+
+        {/* Direct Upload Card */}
+        <div
+          onClick={() => setActiveService('upload')}
+          className={`cursor-pointer bg-white p-5 rounded-2xl border transition-all duration-200 ${
+            activeService === 'upload'
+              ? 'border-slate-900 ring-2 ring-slate-900/10 shadow-md'
+              : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-xl bg-slate-900 text-white">
+              <UploadCloud className="w-5 h-5 text-white" />
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-900 border border-slate-200">
+              직접 업로드
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-slate-900 mb-1">직접 파일 등록</h3>
+          <p className="text-xs text-slate-500 line-clamp-2">
+            PPT, PDF, MD 회의록 및 핵심 소스 코드 직접 입력.
+          </p>
+        </div>
+      </div>
+
+      {/* Main Upload / Integration Details Form Section */}
+      <div className="bg-white rounded-2xl p-6 md:p-8 border border-slate-200 shadow-xs space-y-6">
+        {activeService === 'upload' && (
+          <form onSubmit={handleFileUpload} className="space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <UploadCloud className="w-5 h-5 text-slate-900" />
+                  신규 산출물 / 코드 직접 수집 등록
+                </h2>
+                <p className="text-xs text-slate-500">프로젝트 관련 회의록, 아키텍처 명세, 트러블슈팅 코드를 등록하세요.</p>
+              </div>
+
+              <span className="text-xs text-slate-800 font-semibold bg-slate-100 border border-slate-200 px-3 py-1 rounded-lg">
+                [{currentProject.title}] 선택됨
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">산출물 제목</label>
+                <input
+                  type="text"
+                  required
+                  value={fileTitle}
+                  onChange={(e) => setFileTitle(e.target.value)}
+                  placeholder="예: Kafka Consumer Group Rebalance 방지 로직"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">산출물 유형</label>
+                <select
+                  value={fileType}
+                  onChange={(e: any) => setFileType(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                >
+                  <option value="code">소스 코드 (Source Code)</option>
+                  <option value="meeting_note">회의록 및 스크럼 (Meeting Note)</option>
+                  <option value="document">기획 문서/PPT/PDF (Document)</option>
+                  <option value="architecture">아키텍처 및 ERD 명세 (Architecture)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">태그 (쉼표로 구분)</label>
+              <input
+                type="text"
+                value={tagsInput}
+                onChange={(e) => setTagsInput(e.target.value)}
+                placeholder="예: Troubleshooting, Kafka, Spring Boot, DLQ"
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">산출물 본문 / 회의록 / 코드 스니펫</label>
+              <textarea
+                required
+                rows={6}
+                value={fileContent}
+                onChange={(e) => setFileContent(e.target.value)}
+                placeholder="코드 본문, Markdown 문서 내용 또는 회의록 원문을 입력해 주세요. AI가 이를 바탕으로 트러블슈팅과 포트폴리오를 자동 추출합니다."
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-slate-900 leading-relaxed"
+              />
+            </div>
+
+            {/* Ingestion Progress Bar */}
+            {isUploading && (
+              <div className="space-y-2 p-4 bg-slate-100 border border-slate-200 rounded-xl">
+                <div className="flex justify-between text-xs font-bold text-slate-900">
+                  <span>AI 파이프라인 분석 및 인덱싱 중...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-slate-900 h-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isUploading}
+              className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>산출물 저장 및 AI 인덱싱 추가</span>
+            </button>
+          </form>
+        )}
+
+        {/* Active Service Connector Details */}
+        {activeService === 'notion' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-slate-900" />
+                  Notion Integration 연결 설정
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Notion 내부 통합 토큰(Internal Integration Secret)을 등록하여 노션 회의록과 문서 블록을 수집합니다.
+                </p>
+              </div>
+
+              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 text-xs font-bold rounded-full border border-emerald-200 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> {notionStatus.workspaceName}
+              </span>
+            </div>
+
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between text-xs text-slate-700">
+                <span>등록된 Notion 토큰:</span>
+                <span className="font-mono bg-slate-200/80 px-2.5 py-1 rounded text-slate-800 font-bold">
+                  {notionStatus.tokenMasked}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveNotionToken} className="space-y-4 bg-slate-50/50 p-5 rounded-2xl border border-slate-200">
+              <h3 className="text-xs font-bold text-slate-900">신규 Notion API Integration Key 변경/등록</h3>
+              
+              <div className="space-y-1">
+                <label className="block text-[11px] font-semibold text-slate-700">Notion Workspace 이름</label>
+                <input
+                  type="text"
+                  value={notionWorkspaceInput}
+                  onChange={(e) => setNotionWorkspaceInput(e.target.value)}
+                  placeholder="예: 가천대학교 학술제 워크스페이스"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] font-semibold text-slate-700">Notion Secret Token (secret_...)</label>
+                <input
+                  type="password"
+                  required
+                  value={notionTokenInput}
+                  onChange={(e) => setNotionTokenInput(e.target.value)}
+                  placeholder="secret_notion_xxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSavingNotion}
+                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-colors shadow-xs"
+              >
+                {isSavingNotion ? '토큰 저장 중...' : 'Notion 통합 토큰 저장'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {activeService !== 'upload' && activeService !== 'notion' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-slate-900 capitalize">
+                {activeService} 연동 가이드 및 자동 동기화
+              </h2>
+              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> OAuth 2.0 연결됨
+              </span>
+            </div>
+
+            <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 text-xs text-slate-700">
+              <p className="leading-relaxed">
+                선택하신 <strong>{activeService.toUpperCase()}</strong> 수집기입니다.
+                소스 파이프라인에서 최신 프로젝트 데이터를 파싱하여 자동으로 아카이빙을 진행합니다.
+              </p>
+
+              {isSyncingAsync && (
+                <div className="p-4 bg-slate-900 text-white rounded-xl space-y-2">
+                  <div className="flex justify-between font-bold text-xs">
+                    <span>소스 수집 파이프라인 진행 중</span>
+                    <span>{syncProgress}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="bg-emerald-400 h-full transition-all duration-300" style={{ width: `${syncProgress}%` }} />
+                  </div>
+                  <p className="text-[11px] text-slate-300 font-mono">{syncMessage}</p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <button
+                  onClick={handleTriggerAsyncSync}
+                  disabled={isSyncingAsync}
+                  className="px-4 py-2.5 bg-slate-900 text-white font-bold rounded-xl flex items-center gap-2 hover:bg-slate-800 shadow-xs"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingAsync ? 'animate-spin' : ''}`} />
+                  <span>소스 데이터 동기화 시작</span>
+                </button>
+                <a
+                  href={currentProject.githubRepo || '#'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2.5 bg-white border border-slate-300 font-medium rounded-xl text-slate-700 flex items-center gap-1 hover:bg-slate-50"
+                >
+                  외부 저장소 바로가기 <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Collected Artifacts List */}
+      <div className="bg-white rounded-2xl p-6 md:p-8 border border-slate-200 shadow-xs space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+              수집된 산출물 목록 (Backend Artifacts)
+              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 text-xs font-bold border border-slate-200">
+                {filteredArtifacts.length}개
+              </span>
+            </h2>
+            <p className="text-xs text-slate-500">
+              백엔드 파싱 엔진을 통해 저장된 <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">artifacts.content</code> 산출물입니다.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {/* Backend Artifact Type Pills (COMMIT | CODE | DOC | MEETING) */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-medium">
+              {(['ALL', 'COMMIT', 'CODE', 'DOC', 'MEETING'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setArtifactTypeFilter(t)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                    artifactTypeFilter === t
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full sm:w-56">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="제목/태그 검색..."
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+              />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {filteredArtifacts.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+              등록되거나 수집된 산출물이 없습니다.
+            </div>
+          ) : (
+            filteredArtifacts.map((art) => (
+              <div
+                key={art.id}
+                className="p-5 rounded-2xl border border-slate-200 hover:border-blue-300 transition-all bg-slate-50/50 hover:bg-white space-y-3"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 ${
+                        art.type === 'code'
+                          ? 'bg-purple-100 text-purple-800'
+                          : art.type === 'meeting_note'
+                          ? 'bg-amber-100 text-amber-800'
+                          : art.type === 'architecture'
+                          ? 'bg-indigo-100 text-indigo-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}
+                    >
+                      {art.type === 'code' && <Code2 className="w-3.5 h-3.5" />}
+                      {art.type === 'meeting_note' && <FileText className="w-3.5 h-3.5" />}
+                      {art.type === 'architecture' && <Zap className="w-3.5 h-3.5" />}
+                      {art.type}
+                    </span>
+
+                    <h3 className="text-sm font-bold text-slate-900">{art.title}</h3>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs text-slate-400">
+                    <span>{art.author}</span>
+                    <span>•</span>
+                    <span>{art.timestamp}</span>
+                    <button
+                      onClick={() => onDeleteArtifact(art.id)}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                      title="삭제"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Preview text */}
+                <pre className="p-3 bg-slate-900 text-slate-200 font-mono text-[11px] rounded-xl overflow-x-auto max-h-36 whitespace-pre-wrap leading-relaxed">
+                  {art.content}
+                </pre>
+
+                {/* Tags */}
+                {art.tags.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                    <Tag className="w-3 h-3 text-slate-400" />
+                    {art.tags.map((t) => (
+                      <span
+                        key={t}
+                        className="px-2 py-0.5 bg-slate-200/80 text-slate-700 text-[10px] font-semibold rounded-md"
+                      >
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
