@@ -1,22 +1,3 @@
-export interface BillingRecord {
-  id: string;
-  date: string;
-  planName: string;
-  amount: string;
-  paymentMethod: string;
-  status: '결제 완료' | '환불됨' | '처리 중';
-  receiptUrl?: string;
-}
-
-export interface UserSubscription {
-  plan: 'Free' | 'Pro' | 'Enterprise';
-  status: 'active' | 'canceled' | 'trial';
-  nextBillingDate: string;
-  amount: string;
-  paymentMethod: string;
-  billingHistory: BillingRecord[];
-}
-
 export interface UserNotifications {
   emailAlerts: boolean;
   commitSyncAlerts: boolean;
@@ -24,29 +5,28 @@ export interface UserNotifications {
   marketing: boolean;
 }
 
+/**
+ * `/api/auth/me`가 주는 건 id·email·name 뿐이다.
+ * 아래 선택 필드는 아직 백엔드에 저장할 컬럼이 없어 브라우저 세션에만 남는다.
+ */
 export interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
   avatar?: string;
   googleAvatar?: string;
   githubAvatar?: string;
-  provider: 'google' | 'github' | 'email';
+  provider?: 'google' | 'github' | 'email';
   jobTitle?: string;
   bio?: string;
   techStack?: string[];
   theme?: 'light' | 'dark' | 'system';
-  connectedServices: {
+  /** GET /api/integrations 결과를 옮겨 담는다. 화면 표시용이라 없을 수 있다. */
+  connectedServices?: {
     github: boolean;
     googleDrive: boolean;
     notion: boolean;
   };
-  connectedServicesLastSynced?: {
-    github?: string;
-    googleDrive?: string;
-    notion?: string;
-  };
-  subscription?: UserSubscription;
   notifications?: UserNotifications;
 }
 
@@ -97,9 +77,10 @@ export interface TimelineEvent {
   impactBadge?: string;
 }
 
+/** category는 AI 서버가 분류해서 준다(FRONTEND/BACKEND/…). 화면은 문자열 그대로 표시만 한다. */
 export interface TechStackItem {
   techName: string;
-  category: 'Frontend' | 'Backend' | 'Database' | 'DevOps' | 'AI/ML' | 'Architecture';
+  category: string;
   reasonForAdoption: string;
 }
 
@@ -151,34 +132,76 @@ export interface BackendCitation {
   snippet: string;
 }
 
-export interface SyncSourceStatus {
-  sourceId: string;
-  type: 'GITHUB' | 'GOOGLE_DRIVE' | 'NOTION';
-  status: 'SUCCESS' | 'FAILED' | 'SYNCING';
-  itemSynced: number;
+// ── 백엔드(Spring) 응답 스키마 그대로. 화면용 타입과 섞지 않는다. ──────────────
+
+export type SourceType = 'GITHUB' | 'GDRIVE' | 'NOTION' | 'UPLOAD';
+export type SourceStatus = 'PENDING' | 'SYNCING' | 'DONE' | 'FAILED';
+export type ProjectStatus = 'PENDING' | 'ANALYZING' | 'DONE';
+export type ArtifactType = 'COMMIT' | 'CODE' | 'DOC' | 'MEETING';
+
+export interface SourceView {
+  id: number;
+  type: SourceType;
+  externalRef: string | null;
+  status: SourceStatus;
+  message: string | null;
+  lastSyncedAt: string | null;
 }
 
-export interface SyncStatusResponse {
-  projectId: string;
-  status: 'COMPLETED' | 'IN_PROGRESS' | 'FAILED';
-  progress: number;
-  sources: SyncSourceStatus[];
-  lastSyncedAt: string;
+export interface ProjectSummaryView {
+  id: number;
+  name: string;
+  /** 수집 파이프라인 상태. */
+  status: ProjectStatus;
+  /** 사용자가 고른 진행/완료 구분. */
+  state: 'ONGOING' | 'COMPLETED';
+  description: string | null;
+  role: string | null;
+  category: string | null;
+  files: number;
+  commits: number;
+  createdAt: string;
+  lastSyncedAt: string | null;
+  sources: SourceType[];
+  techStack: string[];
+  period: string | null;
+  members: number;
 }
 
-export interface NotionIntegrationConfig {
-  connected: boolean;
-  workspaceName: string;
-  tokenMasked: string;
-  lastSyncedAt: string;
+export interface ProjectDetailView {
+  project: ProjectSummaryView;
+  sources: SourceView[];
+}
+
+export interface SyncStatusView {
+  status: ProjectStatus;
+  sources: SourceView[];
+}
+
+export interface ArtifactView {
+  id: number;
+  type: ArtifactType;
+  /** 소스 내 고유 키. 커밋이면 sha, PR이면 pr-{번호}. */
+  externalId: string;
+  title: string;
+  path: string | null;
+  content: string | null;
+  author: string | null;
+  occurredAt: string | null;
+  url: string | null;
+  /** 직접 등록한 산출물에만 붙는다. */
+  tags: string[];
+}
+
+/** GET /api/integrations — provider 이름을 소문자로 키에 담아 준다. */
+export interface IntegrationStatus {
+  github: boolean;
+  google: boolean;
+  notion: boolean;
 }
 
 export interface ProjectSummaryResponse {
-  success: boolean;
-  projectId: string;
-  days: number;
   summary: string;
-  updatedAt: string;
 }
 
 export interface ChatMessage {
@@ -261,7 +284,8 @@ export interface CoverLetterQA {
 export interface InterviewPrepItem {
   id: string;
   projectId: string;
-  category: '건축/아키텍처' | '트러블슈팅' | '기술적 의사결정' | 'CS/인프라';
+  /** AI가 정하는 분류라 값을 고정하지 않는다. */
+  category: string;
   question: string;
   sampleAnswer: string;
   keyCheckingPoints: string[];

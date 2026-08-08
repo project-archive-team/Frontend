@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   User as UserIcon,
   Mail,
@@ -24,6 +24,8 @@ import {
   Github
 } from 'lucide-react';
 import { User } from '../types';
+import { apiService } from '../services/api';
+import { initialAvatar } from '../services/avatar';
 
 interface MyPageViewProps {
   user: User;
@@ -49,22 +51,19 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
   const [activeSection, setActiveSection] = useState<'profile' | 'connected' | 'settings'>('profile');
 
   // Form states initialized with user props or defaults
-  const [name, setName] = useState(user.name || '김개발');
-  const [email, setEmail] = useState(user.email || 'dev.kim@company.com');
-  const [jobTitle, setJobTitle] = useState(user.jobTitle || '풀스택 개발자');
-  const [bio, setBio] = useState(user.bio || '아키텍처 수집과 트러블슈팅 아카이빙을 즐기는 3년차 엔지니어입니다.');
-  
-  // Social Avatars State
-  const [provider, setProvider] = useState<'google' | 'github' | 'email'>(user.provider || 'github');
-  const googleAvatar = user.googleAvatar || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80';
-  const githubAvatar = user.githubAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
-  const [currentAvatar, setCurrentAvatar] = useState<string>(
-    user.avatar || (user.provider === 'google' ? googleAvatar : githubAvatar)
-  );
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [jobTitle, setJobTitle] = useState(user.jobTitle || '');
+  const [bio, setBio] = useState(user.bio || '');
 
-  const [techStack, setTechStack] = useState<string[]>(
-    user.techStack || ['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'Tailwind CSS']
-  );
+  // Social Avatars State
+  const [provider, setProvider] = useState<'google' | 'github' | 'email'>(user.provider || 'email');
+  // 아바타를 보관하는 곳이 없다 — 이름 첫 글자로 만든 이미지를 쓴다(외부 요청 없음).
+  const googleAvatar = user.googleAvatar || initialAvatar(user.name);
+  const githubAvatar = user.githubAvatar || initialAvatar(user.name);
+  const [currentAvatar, setCurrentAvatar] = useState<string>(user.avatar || initialAvatar(user.name));
+
+  const [techStack, setTechStack] = useState<string[]>(user.techStack || []);
   const [newSkillInput, setNewSkillInput] = useState('');
   
   // Theme & Notifications
@@ -79,13 +78,14 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
   );
 
   // Connected Services
+  // 실제 연동 여부는 App이 /api/integrations로 읽어 넘겨준다. 모르는 동안은 미연결로 둔다.
   const [connectedServices, setConnectedServices] = useState(
-    user.connectedServices || {
-      github: true,
-      googleDrive: true,
-      notion: true
-    }
+    user.connectedServices || { github: false, googleDrive: false, notion: false }
   );
+
+  useEffect(() => {
+    if (user.connectedServices) setConnectedServices(user.connectedServices);
+  }, [user.connectedServices]);
 
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
 
@@ -155,53 +155,33 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
     setTechStack(techStack.filter((s) => s !== skillToRemove));
   };
 
-  const toggleService = (service: 'github' | 'googleDrive' | 'notion') => {
+  /**
+   * 연결은 OAuth 화면으로 넘어가야 하고(토큰은 백엔드가 받는다), 해제는 저장된 토큰을 지우면 된다.
+   * Notion은 OAuth가 아니라 토큰 붙여넣기라 소스 연결 화면으로 안내한다.
+   */
+  const toggleService = async (service: 'github' | 'googleDrive' | 'notion') => {
     const isConnecting = !connectedServices[service];
-    const newState = {
-      ...connectedServices,
-      [service]: isConnecting
-    };
-    setConnectedServices(newState);
+    const providerName = service === 'googleDrive' ? 'google' : service;
 
-    let newProvider = provider;
-    let newAvatar = currentAvatar;
-
-    if (service === 'github' && isConnecting) {
-      newProvider = 'github';
-      newAvatar = githubAvatar;
-      setProvider('github');
-      setCurrentAvatar(githubAvatar);
-      showToast('GitHub 계정이 연동되었으며 프로필 사진이 GitHub 계정 사진으로 설정되었습니다!');
-    } else if (service === 'googleDrive' && isConnecting) {
-      newProvider = 'google';
-      newAvatar = googleAvatar;
-      setProvider('google');
-      setCurrentAvatar(googleAvatar);
-      showToast('Google 계정이 연동되었으며 프로필 사진이 Google 계정 사진으로 설정되었습니다!');
-    } else {
-      showToast(
-        isConnecting
-          ? `${service.toUpperCase()} 계정이 연결되었습니다.`
-          : `${service.toUpperCase()} 계정 연결이 해제되었습니다.`
-      );
+    if (isConnecting) {
+      if (service === 'notion') {
+        showToast('Notion은 소스 연결 화면에서 Integration 토큰을 등록해 주세요.');
+        return;
+      }
+      // 돌아오면 App이 토큰을 저장하고 연동 상태를 다시 읽는다.
+      apiService.auth.startOAuth(providerName as 'github' | 'google');
+      return;
     }
 
-    const updatedUser: User = {
-      ...user,
-      name,
-      email,
-      jobTitle,
-      bio,
-      techStack,
-      theme,
-      connectedServices: newState,
-      notifications,
-      provider: newProvider,
-      avatar: newAvatar,
-      googleAvatar,
-      githubAvatar
-    };
-    onUpdateUser(updatedUser);
+    try {
+      await apiService.integrations.disconnect(providerName as 'github' | 'google' | 'notion');
+      const newState = { ...connectedServices, [service]: false };
+      setConnectedServices(newState);
+      onUpdateUser({ ...user, connectedServices: newState });
+      showToast(`${service.toUpperCase()} 연결이 해제되었습니다.`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '연결 해제에 실패했습니다.');
+    }
   };
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {

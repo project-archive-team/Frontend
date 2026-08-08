@@ -20,20 +20,20 @@ interface FloatingChatbotProps {
   artifacts: ProjectArtifact[];
 }
 
+const WELCOME_MESSAGE: ChatMessage = {
+  id: 'msg-welcome',
+  sender: 'assistant',
+  text: '안녕하세요! 아카이빙된 소스 코드와 회의록을 바탕으로 기술적 의사결정 및 트러블슈팅 질문에 실시간 답변해 드립니다. 무엇이든 물어보세요!',
+  timestamp: '',
+};
+
 export const FloatingChatbot: React.FC<FloatingChatbotProps> = ({
   projects,
   selectedProjectId,
   artifacts,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'msg-welcome',
-      sender: 'assistant',
-      text: '안녕하세요! 아카이빙된 소스 코드와 회의록을 바탕으로 기술적 의사결정 및 트러블슈팅 질문에 실시간 답변해 드립니다. 무엇이든 물어보세요!',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
 
@@ -48,6 +48,36 @@ export const FloatingChatbot: React.FC<FloatingChatbotProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // 프로젝트를 바꾸거나 창을 열면 서버에 쌓인 대화를 그대로 이어 붙인다.
+  useEffect(() => {
+    if (!isOpen || !selectedProjectId) return;
+    let cancelled = false;
+    apiService.projects
+      .chatHistory(Number(selectedProjectId))
+      .then((history) => {
+        if (cancelled) return;
+        setMessages([
+          WELCOME_MESSAGE,
+          ...history.map((m) => ({
+            id: `srv-${m.id}`,
+            sender: m.role === 'USER' ? ('user' as const) : ('assistant' as const),
+            text: m.content,
+            timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            citations: m.citations.map((c) => ({
+              artifactId: String(c.artifactId),
+              title: c.title ?? '',
+              url: c.url ?? undefined,
+              snippet: c.snippet,
+            })),
+          })),
+        ]);
+      })
+      .catch((err) => console.warn('대화 기록을 불러오지 못했습니다', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, selectedProjectId]);
 
   const handleSendMessage = async (textToSend?: string) => {
     const queryText = (textToSend || input).trim();
@@ -74,46 +104,35 @@ export const FloatingChatbot: React.FC<FloatingChatbotProps> = ({
     setIsStreaming(true);
 
     try {
-      // Fetch RAG Q&A response from Spring Boot Backend (POST /api/projects/{id}/chat)
-      const res = await apiService.projects.sendChatMessage(selectedProjectId, queryText);
-
-      const fullResponse = res?.content || `'${currentProject?.title || '선택한 프로젝트'}'에 대한 답변해 드립니다.
-
-질문 내용: "${queryText}"
-
-아카이빙된 프로젝트 산출물(소스코드, 회의록, 기술 문서 등 ${projectArtifacts.length}개) 분석 결과:
-1. **아키텍처 및 기술 스택**: ${currentProject?.techStack.join(', ') || '핵심 스택'}이 안정적으로 반영되어 있습니다.
-2. **핵심 기여 및 트러블슈팅**: 수집된 산출물 데이터에 따라 원인 분석과 대안 검토가 기록되어 있습니다.
-
-추가적인 특정 모듈 구조나 자소서/면접 질문 작성이 필요하시면 요청해 주세요!`;
-
-      // Simulate streaming chunks
-      const chunks = fullResponse.match(/.{1,4}/g) || [fullResponse];
-      let accumulatedText = '';
-
-      for (const chunk of chunks) {
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        accumulatedText += chunk;
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMsgId ? { ...msg, text: accumulatedText } : msg
-          )
-        );
-      }
-
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMsgId ? { ...msg, isStreaming: false } : msg
-        )
-      );
-    } catch (error) {
-      console.error('SSE Stream error:', error);
+      const res = await apiService.projects.ask(Number(selectedProjectId), queryText);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMsgId
             ? {
                 ...msg,
-                text: '죄송합니다. 실시간 답변 생성 중 오류가 발생했습니다.',
+                text: res.content,
+                isStreaming: false,
+                citations: res.citations.map((c) => ({
+                  artifactId: String(c.artifactId),
+                  title: c.title ?? '',
+                  url: c.url ?? undefined,
+                  snippet: c.snippet,
+                })),
+              }
+            : msg
+        )
+      );
+    } catch (error) {
+      console.error('chat error:', error);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMsgId
+            ? {
+                ...msg,
+                text:
+                  error instanceof Error
+                    ? `답변 생성에 실패했습니다: ${error.message}`
+                    : '답변 생성 중 오류가 발생했습니다.',
                 isStreaming: false,
               }
             : msg

@@ -17,12 +17,13 @@ import {
   ArrowUpRight,
   ShieldAlert
 } from 'lucide-react';
-import { Project, TimelineEvent } from '../types';
+import { Project, SourceView, TimelineEvent } from '../types';
 import { apiService } from '../services/api';
 
 interface DashboardViewProps {
   projects: Project[];
   timelines: TimelineEvent[];
+  sources: SourceView[];
   selectedProjectId: string;
   setSelectedProjectId: (id: string) => void;
   onNavigateToTab: (tab: 'dashboard' | 'connectors' | 'archive' | 'career') => void;
@@ -30,9 +31,18 @@ interface DashboardViewProps {
   onDeleteProject: (id: string) => void;
 }
 
+/** 소스 상태를 카드에 쓸 짧은 문구로 바꾼다. */
+const SOURCE_LABEL: Record<string, string> = {
+  DONE: '동기화됨',
+  SYNCING: '수집 중',
+  FAILED: '실패',
+  PENDING: '대기 중',
+};
+
 export const DashboardView: React.FC<DashboardViewProps> = ({
   projects,
   timelines,
+  sources,
   selectedProjectId,
   setSelectedProjectId,
   onNavigateToTab,
@@ -50,19 +60,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (!selectedProjectId) return;
     setIsSummaryLoading(true);
     try {
-      const res = await apiService.projects.getSummary(selectedProjectId, days);
-      if (res && res.summary) {
-        setSummaryText(res.summary);
-      } else {
-        const summary = `[${selectedProject.title}] 최근 ${days}일간 활동 요약:
-• 주요 커밋 및 기능 개발이 성공적으로 반영되었습니다.
-• Spring 백엔드 연동을 통한 핵심 모듈 아키텍처 및 산출물 아카이빙 완료.
-• 비동기 소스 파이프라인 수집 상태 양호.`;
-        setSummaryText(summary);
-      }
+      const res = await apiService.projects.summary(Number(selectedProjectId), days);
+      setSummaryText(res.summary);
     } catch (err) {
       console.error('Summary error:', err);
-      setSummaryText('요약 데이터를 불러올 수 없습니다.');
+      setSummaryText(
+        err instanceof Error ? `요약을 불러오지 못했습니다: ${err.message}` : '요약 데이터를 불러올 수 없습니다.'
+      );
     } finally {
       setIsSummaryLoading(false);
     }
@@ -77,6 +81,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const totalFiles = projects.reduce((acc, p) => acc + p.filesCount, 0);
   const totalCommits = projects.reduce((acc, p) => acc + p.commitsCount, 0);
+
+  // "완성도"는 별도 지표가 없다. 수집이 끝난 프로젝트 비율로 계산한다.
+  const completion = projects.length
+    ? Math.round((projects.filter((p) => p.progress === 100).length / projects.length) * 100)
+    : 0;
+
+  const statusOf = (type: SourceView['type']) => {
+    const source = sources.find((s) => s.type === type);
+    return source ? SOURCE_LABEL[source.status] ?? source.status : '미연결';
+  };
+  const isOk = (type: SourceView['type']) => sources.find((s) => s.type === type)?.status === 'DONE';
+  // 선택한 프로젝트의 소스 중 몇 개가 수집을 마쳤는지.
+  const settled = sources.filter((s) => s.status === 'DONE' || s.status === 'FAILED').length;
+  const syncPercent = sources.length ? Math.round((settled / sources.length) * 100) : 0;
 
   return (
     <div className="space-y-8 animate-fadeIn break-keep">
@@ -122,8 +140,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="text-2xl font-black text-white whitespace-nowrap">{totalCommits}회</span>
           </div>
           <div className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700/80">
-            <span className="text-xs text-slate-400 font-medium block mb-1 whitespace-nowrap">AI 포트폴리오 완성도</span>
-            <span className="text-2xl font-black text-emerald-400 whitespace-nowrap">92%</span>
+            <span className="text-xs text-slate-400 font-medium block mb-1 whitespace-nowrap">수집 완료 프로젝트</span>
+            <span className="text-2xl font-black text-emerald-400 whitespace-nowrap">{completion}%</span>
           </div>
         </div>
       </div>
@@ -137,39 +155,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">외부 저장소 및 파일 수집 진행 상황</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">GitHub, Google Drive, Notion 및 직접 업로드 파일이 최신 상태로 동기화되었습니다.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {sources.length === 0
+                  ? '선택한 프로젝트에 등록된 수집 소스가 없습니다.'
+                  : `${selectedProject?.title ?? ''} 프로젝트의 소스 ${sources.length}개 기준입니다.`}
+              </p>
             </div>
           </div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 self-start sm:self-auto">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            실시간 연동 완료 (100%)
+            수집 완료 ({syncPercent}%)
           </span>
         </div>
 
         <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-          <div className="bg-slate-900 dark:bg-emerald-500 h-full rounded-full w-full" />
+          <div
+            className="bg-slate-900 dark:bg-emerald-500 h-full rounded-full transition-all duration-300"
+            style={{ width: `${syncPercent}%` }}
+          />
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
           <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
             <Github className="w-4 h-4 text-slate-900 dark:text-slate-100" />
             <span className="font-medium">GitHub Repository</span>
-            <span className="ml-auto font-bold text-emerald-600 dark:text-emerald-400">동기화됨</span>
+            <span className={`ml-auto font-bold ${isOk('GITHUB') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+              {statusOf('GITHUB')}
+            </span>
           </div>
           <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
             <HardDrive className="w-4 h-4 text-slate-800 dark:text-slate-200" />
             <span className="font-medium">Google Drive</span>
-            <span className="ml-auto font-bold text-emerald-600 dark:text-emerald-400">동기화됨</span>
+            <span className={`ml-auto font-bold ${isOk('GDRIVE') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+              {statusOf('GDRIVE')}
+            </span>
           </div>
           <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
             <BookOpen className="w-4 h-4 text-slate-800 dark:text-slate-200" />
             <span className="font-medium">Notion Workspace</span>
-            <span className="ml-auto font-bold text-emerald-600 dark:text-emerald-400">동기화됨</span>
+            <span className={`ml-auto font-bold ${isOk('NOTION') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+              {statusOf('NOTION')}
+            </span>
           </div>
           <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
             <FileCode className="w-4 h-4 text-slate-800 dark:text-slate-200" />
             <span className="font-medium">업로드 파일 (PPT/PDF)</span>
-            <span className="ml-auto font-bold text-emerald-600 dark:text-emerald-400">정제 완료</span>
+            <span className={`ml-auto font-bold ${isOk('UPLOAD') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+              {statusOf('UPLOAD')}
+            </span>
           </div>
         </div>
       </div>
@@ -453,7 +486,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {isSummaryLoading ? (
               <div className="p-6 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 text-center text-xs text-slate-600 dark:text-slate-300 animate-pulse space-y-2">
                 <div className="font-bold">FastAPI AI 서버 연동 요약 분석 중...</div>
-                <div className="text-[11px] text-slate-400 dark:text-slate-500">최근 {summaryDays}일간 수집된 {selectedProject.title} 커밋/회의록 스캔</div>
+                <div className="text-[11px] text-slate-400 dark:text-slate-500">최근 {summaryDays}일간 수집된 {selectedProject?.title ?? ""} 커밋/회의록 스캔</div>
               </div>
             ) : summaryText ? (
               <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 text-xs leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-sans">
@@ -470,7 +503,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               disabled={isSummaryLoading}
               className="w-full py-2 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-bold text-xs rounded-xl shadow-xs transition-colors"
             >
-              ✨ {selectedProject.title} 최근 {summaryDays}일 AI 요약 불러오기
+              ✨ {selectedProject?.title ?? ""} 최근 {summaryDays}일 AI 요약 불러오기
             </button>
           </div>
 

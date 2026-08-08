@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Code2, TrendingUp, UserCheck, ShieldCheck, Github, Mail, ArrowRight, Lock, User as UserIcon, Briefcase, CheckSquare, Square } from 'lucide-react';
 import { User } from '../types';
-import { apiService } from '../services/api';
+import { ApiError, apiService } from '../services/api';
 
 interface LoginViewProps {
   onLoginSuccess: (user: User) => void;
@@ -25,30 +25,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setIsLoading(true);
 
     try {
-      const res = await apiService.auth.login({ email, password });
-      if (res && res.user) {
-        onLoginSuccess(res.user);
-      } else {
-        // Local Fallback if backend is not reachable in dev
-        onLoginSuccess({
-          id: 'user-1',
-          name: email.split('@')[0] || '김개발',
-          email: email || 'dev.kim@company.com',
-          provider: 'email',
-          jobTitle: '풀스택 개발자',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-          googleAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
-          githubAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-          connectedServices: {
-            github: true,
-            googleDrive: true,
-            notion: true,
-          },
-        });
-      }
+      await apiService.auth.login({ email, password });
+      onLoginSuccess({ ...(await apiService.auth.me()), provider: 'email' });
     } catch (err) {
-      console.error(err);
-      alert('로그인 중 오류가 발생했습니다.');
+      alert(err instanceof ApiError && err.status === 401
+        ? '이메일 또는 비밀번호가 올바르지 않습니다.'
+        : '로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setIsLoading(false);
     }
@@ -69,69 +51,39 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
     setIsLoading(true);
     try {
-      const res = await apiService.auth.signup({
+      await apiService.auth.signup({
         email: email.trim(),
         password,
         name: name.trim() || email.split('@')[0],
       });
-
-      if (res && res.user) {
-        alert(`환영합니다, ${res.user.name || name}님! 회원가입이 완료되었습니다.`);
-        onLoginSuccess(res.user);
-      } else {
-        // Fallback for dev mode
-        const newUser: User = {
-          id: `user-${Date.now()}`,
-          name: name.trim() || email.split('@')[0] || '새로운 개발자',
-          email: email.trim() || 'new.developer@company.com',
-          jobTitle: jobTitle || '엔지니어',
-          provider: 'email',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-          googleAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
-          githubAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-          connectedServices: {
-            github: false,
-            googleDrive: false,
-            notion: false,
-          },
-        };
-
-        alert(`환영합니다, ${newUser.name}님! 회원가입이 완료되었습니다.`);
-        onLoginSuccess(newUser);
+      // 가입 직후 입력한 직무를 프로필에 반영해 둔다.
+      if (jobTitle.trim()) {
+        await apiService.auth.updateMe({ jobTitle: jobTitle.trim() });
       }
+      const me = await apiService.auth.me();
+      onLoginSuccess({
+        ...me,
+        techStack: me.techStack ?? [],
+        theme: (me.theme as User['theme']) ?? 'light',
+        provider: 'email',
+      });
     } catch (err) {
       console.error(err);
-      alert('회원가입 중 오류가 발생했습니다.');
+      alert(err instanceof ApiError && err.status === 409
+          ? '이미 가입된 이메일입니다.'
+          : err instanceof ApiError && err.status === 400
+          ? '입력값을 확인해 주세요. 비밀번호는 8자 이상이어야 합니다.'
+          : '회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
+  /** 백엔드로 넘어갔다가 토큰을 쿼리에 달고 돌아온다. 복귀 처리는 App이 맡는다. */
   const handleSocialLogin = (provider: 'google' | 'github') => {
     setIsLoading(true);
-    // OAuth 2.0 Backend Redirection as specified by spec: GET /oauth2/authorization/{github|google}
-    try {
-      apiService.auth.startOAuth(provider);
-    } catch (err) {
-      console.warn('OAuth redirect error, falling back locally', err);
-      onLoginSuccess({
-        id: provider === 'google' ? 'google-user-123' : 'github-user-456',
-        name: provider === 'google' ? '김개발 (Google)' : '김개발 (GitHub)',
-        email: provider === 'google' ? 'yongbin.gachon@gmail.com' : 'dev-github@users.noreply.github.com',
-        provider,
-        googleAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
-        githubAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-        avatar: provider === 'github'
-          ? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
-          : 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
-        connectedServices: {
-          github: true,
-          googleDrive: true,
-          notion: true,
-        },
-      });
-      setIsLoading(false);
-    }
+    apiService.auth.startOAuth(provider);
   };
 
   return (

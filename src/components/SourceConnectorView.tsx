@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Github,
   HardDrive,
@@ -17,7 +17,7 @@ import {
   Zap,
   Tag
 } from 'lucide-react';
-import { Project, ProjectArtifact } from '../types';
+import { Project, ProjectArtifact, SourceView, User } from '../types';
 import { apiService } from '../services/api';
 
 interface SourceConnectorViewProps {
@@ -25,9 +25,17 @@ interface SourceConnectorViewProps {
   selectedProjectId: string;
   setSelectedProjectId: (id: string) => void;
   artifacts: ProjectArtifact[];
-  onAddArtifact: (artifact: Omit<ProjectArtifact, 'id' | 'timestamp'>) => void;
-  onDeleteArtifact: (id: string) => void;
+  onAddArtifact: (artifact: Omit<ProjectArtifact, 'id' | 'timestamp'>) => void | Promise<void>;
+  onDeleteArtifact: (id: string) => void | Promise<void>;
+  sources: SourceView[];
+  connected: User['connectedServices'];
+  onSyncFinished: () => void | Promise<void>;
+  onIntegrationsChanged: () => void | Promise<void>;
 }
+
+/** 카드 배지는 실제 토큰 보유 여부를 보여준다. 색 토큰은 이 파일이 이미 쓰던 두 가지를 그대로 쓴다. */
+const BADGE_ON = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200';
+const BADGE_OFF = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-900 border border-slate-200';
 
 export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
   projects,
@@ -36,6 +44,10 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
   artifacts,
   onAddArtifact,
   onDeleteArtifact,
+  sources,
+  connected,
+  onSyncFinished,
+  onIntegrationsChanged,
 }) => {
   const [activeService, setActiveService] = useState<'github' | 'drive' | 'notion' | 'upload'>('upload');
   
@@ -52,20 +64,31 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
   // Notion Integration State
   const [notionTokenInput, setNotionTokenInput] = useState('');
   const [notionWorkspaceInput, setNotionWorkspaceInput] = useState('');
-  const [notionStatus, setNotionStatus] = useState<any>({
-    connected: true,
-    workspaceName: '개발자 개인 아카이브 노션',
-    tokenMasked: 'secret_notion_****_89a1',
-  });
   const [isSavingNotion, setIsSavingNotion] = useState(false);
 
   // Async Sync State (HTTP 202)
   const [isSyncingAsync, setIsSyncingAsync] = useState(false);
   const [syncProgress, setSyncProgress] = useState<number | null>(null);
   const [syncMessage, setSyncMessage] = useState<string>('');
+  const pollTimer = useRef<number | null>(null);
 
   const currentProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
   const currentArtifacts = artifacts.filter((a) => a.projectId === selectedProjectId);
+  const activeSourceRef = sources.find(
+    (s) => s.type === (activeService === 'github' ? 'GITHUB' : 'GDRIVE')
+  )?.externalRef;
+
+  // 백엔드가 워크스페이스 이름을 저장하지 않는다 — 토큰 보유 여부만 사실대로 보여준다.
+  const notionStatus = {
+    connected: Boolean(connected?.notion),
+    workspaceName: connected?.notion ? '연결됨' : '미연결',
+    tokenMasked: connected?.notion ? '저장됨 (secret_****)' : '등록된 토큰 없음',
+  };
+
+  // 화면을 벗어나면 폴링을 멈춘다.
+  useEffect(() => () => {
+    if (pollTimer.current) window.clearTimeout(pollTimer.current);
+  }, []);
 
   const handleSaveNotionToken = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,47 +96,75 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
     setIsSavingNotion(true);
     try {
       await apiService.integrations.setNotionToken(notionTokenInput);
-      setNotionStatus({
-        connected: true,
-        workspaceName: notionWorkspaceInput || '연결된 노션 워크스페이스',
-        tokenMasked: `secret_notion_****_${notionTokenInput.slice(-4)}`,
-        lastSyncedAt: new Date().toISOString(),
-      });
       setNotionTokenInput('');
-      alert('Notion 토큰 설정이 성공적으로 백엔드(PUT /api/integrations/notion)에 저장되었습니다.');
+      await onIntegrationsChanged();
+      alert('Notion 통합 토큰이 저장되었습니다.');
     } catch (err) {
       console.error(err);
-      alert('Notion 토큰 저장 중 오류가 발생했습니다.');
+      alert(err instanceof Error ? err.message : 'Notion 토큰 저장 중 오류가 발생했습니다.');
     } finally {
       setIsSavingNotion(false);
     }
   };
 
+  /**
+   * 동기화는 202로 시작만 하고 실제 진행은 소스별 상태를 폴링해서 따라간다.
+   * 진행률은 "끝난 소스 / 전체 소스"로 계산한다 — 백엔드가 퍼센트를 주지 않는다.
+   */
   const handleTriggerAsyncSync = async () => {
+    if (!selectedProjectId) return;
+    const projectId = Number(selectedProjectId);
+
     setIsSyncingAsync(true);
-    setSyncProgress(10);
-    setSyncMessage('HTTP 202 Accepted: 백엔드 수집 비동기 작업이 생성되었습니다.');
+    setSyncProgress(5);
+    setSyncMessage('수집 작업을 생성하는 중...');
 
     try {
-      await apiService.projects.startSync(selectedProjectId);
-      setSyncProgress(40);
-      setSyncMessage('소스 파이프라인 진행 중...');
-
-      setTimeout(async () => {
-        setSyncProgress(80);
-        await apiService.projects.getSyncStatus(selectedProjectId);
-        setSyncProgress(100);
-        setSyncMessage('수집 완료! 최신 산출물이 업데이트되었습니다.');
-        setTimeout(() => {
-          setIsSyncingAsync(false);
-          setSyncProgress(null);
-        }, 1500);
-      }, 1200);
+      await apiService.projects.startSync(projectId);
     } catch (err) {
-      console.error(err);
       setIsSyncingAsync(false);
       setSyncProgress(null);
+      setSyncMessage('');
+      alert(err instanceof Error ? err.message : '동기화를 시작하지 못했습니다.');
+      return;
     }
+
+    const poll = async () => {
+      try {
+        const status = await apiService.projects.syncStatus(projectId);
+        const total = status.sources.length || 1;
+        const settled = status.sources.filter((s) => s.status === 'DONE' || s.status === 'FAILED').length;
+        setSyncProgress(Math.max(10, Math.round((settled / total) * 100)));
+
+        const failed = status.sources.filter((s) => s.status === 'FAILED');
+        if (status.status === 'ANALYZING') {
+          const running = status.sources.find((s) => s.status === 'SYNCING');
+          setSyncMessage(running ? `${running.type} 수집 중...` : '소스 파이프라인 진행 중...');
+          pollTimer.current = window.setTimeout(poll, 2000);
+          return;
+        }
+
+        setSyncProgress(100);
+        setSyncMessage(
+          failed.length > 0
+            ? `일부 소스 실패: ${failed.map((f) => `${f.type}(${f.message ?? '원인 미상'})`).join(', ')}`
+            : '수집 완료! 최신 산출물이 반영되었습니다.'
+        );
+        await onSyncFinished();
+        // 실패 메시지는 사용자가 읽을 시간을 준다.
+        pollTimer.current = window.setTimeout(() => {
+          setIsSyncingAsync(false);
+          setSyncProgress(null);
+        }, failed.length > 0 ? 6000 : 1500);
+      } catch (err) {
+        console.error(err);
+        setSyncMessage('진행 상황을 불러오지 못했습니다.');
+        setIsSyncingAsync(false);
+        setSyncProgress(null);
+      }
+    };
+
+    pollTimer.current = window.setTimeout(poll, 1000);
   };
 
   const filteredArtifacts = currentArtifacts.filter((a) => {
@@ -134,32 +185,29 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
     );
   });
 
-  const handleFileUpload = (e: React.FormEvent) => {
+  const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fileTitle.trim() || !fileContent.trim()) return;
+    if (!fileTitle.trim() || !fileContent.trim() || !selectedProjectId) return;
 
     setIsUploading(true);
-    setUploadProgress(20);
-
-    const timer1 = setTimeout(() => setUploadProgress(65), 300);
-    const timer2 = setTimeout(() => {
-      setUploadProgress(100);
-      onAddArtifact({
+    setUploadProgress(35);
+    try {
+      await onAddArtifact({
         projectId: selectedProjectId,
-        title: fileTitle,
+        title: fileTitle.trim(),
         type: fileType,
         content: fileContent,
-        author: '김개발 (사용자)',
+        author: '',
         tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
       });
-
-      // Reset
+      setUploadProgress(100);
       setFileTitle('');
       setFileContent('');
       setTagsInput('');
+    } finally {
       setIsUploading(false);
       setUploadProgress(0);
-    }, 700);
+    }
   };
 
   return (
@@ -213,8 +261,8 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
             <div className="p-2 rounded-xl bg-slate-900 text-white">
               <Github className="w-5 h-5" />
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-              연동 완료
+            <span className={connected?.github ? BADGE_ON : BADGE_OFF}>
+              {connected?.github ? '연동 완료' : '로그인 필요'}
             </span>
           </div>
           <h3 className="text-sm font-bold text-slate-900 mb-1">GitHub</h3>
@@ -236,8 +284,8 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
             <div className="p-2 rounded-xl bg-slate-100 text-slate-900 border border-slate-200">
               <HardDrive className="w-5 h-5 text-slate-800" />
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-              연동 완료
+            <span className={connected?.googleDrive ? BADGE_ON : BADGE_OFF}>
+              {connected?.googleDrive ? '연동 완료' : '로그인 필요'}
             </span>
           </div>
           <h3 className="text-sm font-bold text-slate-900 mb-1">Google Drive</h3>
@@ -259,8 +307,8 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
             <div className="p-2 rounded-xl bg-slate-100 text-slate-900 border border-slate-200">
               <BookOpen className="w-5 h-5 text-slate-800" />
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-              연동 완료
+            <span className={connected?.notion ? BADGE_ON : BADGE_OFF}>
+              {connected?.notion ? '연동 완료' : '토큰 필요'}
             </span>
           </div>
           <h3 className="text-sm font-bold text-slate-900 mb-1">Notion Workspace</h3>
@@ -461,15 +509,44 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
                 {activeService} 연동 가이드 및 자동 동기화
               </h2>
               <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> OAuth 2.0 연결됨
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {(activeService === 'github' ? connected?.github : connected?.googleDrive)
+                  ? 'OAuth 2.0 연결됨'
+                  : `${activeService === 'github' ? 'GitHub' : 'Google'} 로그인 필요`}
               </span>
             </div>
 
             <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 text-xs text-slate-700">
               <p className="leading-relaxed">
                 선택하신 <strong>{activeService.toUpperCase()}</strong> 수집기입니다.
-                소스 파이프라인에서 최신 프로젝트 데이터를 파싱하여 자동으로 아카이빙을 진행합니다.
+                {activeSourceRef
+                  ? ` 등록된 대상: ${activeSourceRef}`
+                  : ' 이 프로젝트에 등록된 대상이 없습니다. 프로젝트 생성 시 저장소 주소를 입력하면 수집 대상이 됩니다.'}
               </p>
+
+              {/* 등록된 소스별 최근 수집 결과 */}
+              {sources.length > 0 && (
+                <div className="space-y-1.5">
+                  {sources.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between gap-3">
+                      <span className="font-semibold text-slate-800">{s.type}</span>
+                      <span className="text-slate-500 truncate flex-1">{s.externalRef || '(전체)'}</span>
+                      <span
+                        className={
+                          s.status === 'FAILED'
+                            ? 'font-bold text-rose-600'
+                            : s.status === 'DONE'
+                            ? 'font-bold text-emerald-600'
+                            : 'font-bold text-slate-500'
+                        }
+                        title={s.message || undefined}
+                      >
+                        {s.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {isSyncingAsync && (
                 <div className="p-4 bg-slate-900 text-white rounded-xl space-y-2">
@@ -494,7 +571,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
                   <span>소스 데이터 동기화 시작</span>
                 </button>
                 <a
-                  href={currentProject.githubRepo || '#'}
+                  href={currentProject?.githubRepo || '#'}
                   target="_blank"
                   rel="noreferrer"
                   className="px-4 py-2.5 bg-white border border-slate-300 font-medium rounded-xl text-slate-700 flex items-center gap-1 hover:bg-slate-50"

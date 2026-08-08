@@ -16,6 +16,7 @@ import {
   Moon
 } from 'lucide-react';
 import { User, Project } from '../types';
+import { initialAvatar } from '../services/avatar';
 
 export type NavTab = 'dashboard' | 'connectors' | 'archive' | 'career' | 'mypage';
 
@@ -203,7 +204,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <img
-                  src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                  src={user.avatar || initialAvatar(user.name)}
                   alt={user.name}
                   className="w-8 h-8 rounded-full object-cover"
                 />
@@ -386,7 +387,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <img
-                src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                src={user.avatar || initialAvatar(user.name)}
                 alt={user.name}
                 className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-200 dark:ring-slate-700 shrink-0 group-hover:ring-slate-400 dark:group-hover:ring-slate-500 transition-all"
               />
