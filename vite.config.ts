@@ -15,7 +15,7 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
       proxy: {
-        '/api': { target: process.env.BACKEND_URL || 'http://13.125.136.195', changeOrigin: true },
+        '/api': { target: process.env.BACKEND_URL || 'https://88popo.kro.kr', changeOrigin: true },
       },
     },
   };
