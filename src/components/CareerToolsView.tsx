@@ -204,6 +204,7 @@ export const CareerToolsView: React.FC<CareerToolsViewProps> = ({
                 </div>
 
                 {/* STAR Breakdown Box */}
+                {cl.starBreakdown && (
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <span className="font-bold text-amber-700 block mb-1">Situation (상황)</span>
@@ -222,6 +223,7 @@ export const CareerToolsView: React.FC<CareerToolsViewProps> = ({
                     <p className="text-emerald-950 font-semibold leading-relaxed">{cl.starBreakdown.result}</p>
                   </div>
                 </div>
+                )}
 
                 {/* Generated Answer Body */}
                 <div className="space-y-2">

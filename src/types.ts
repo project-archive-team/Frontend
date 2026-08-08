@@ -249,7 +249,7 @@ export interface CoverLetterQA {
   selectedProjectId: string;
   projectTitle: string;
   generatedAnswer: string;
-  starBreakdown: {
+  starBreakdown?: {
     situation: string;
     task: string;
     action: string;

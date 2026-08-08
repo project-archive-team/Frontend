@@ -18,10 +18,18 @@
  * GET/POST /api/projects/{id}/chat
  * GET    /api/projects/{id}/summary?days=7
  * POST   /api/projects/{id}/interview
- * GET/PUT /api/integrations[/notion]
+ * GET    /api/integrations
+ * PUT    /api/integrations/notion
  */
 
-const API_BASE_URL = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_API_BASE_URL || '';
+const env = (import.meta as unknown as { env: Record<string, string> }).env ?? {};
+
+// 빈 값이 기본 — /api 요청은 같은 오리진으로 나가고 vite dev proxy(로컬)나 vercel rewrite(배포)가 EC2로 넘긴다.
+const API_BASE_URL = env.VITE_API_BASE_URL || '';
+
+// OAuth만은 프록시를 타면 안 된다. 인가 요청과 콜백이 다른 오리진에 떨어지면
+// 백엔드 세션에서 authorization request를 못 찾는다 — 백엔드로 직접 보낸다.
+const OAUTH_BASE_URL = env.VITE_OAUTH_BASE_URL || API_BASE_URL;
 
 // Access & Refresh Token Management
 const ACCESS_TOKEN_KEY = 'career_arch_access_token';
@@ -93,7 +101,7 @@ export const apiService = {
         if (data.accessToken) {
           tokenStorage.setTokens(data.accessToken, data.refreshToken);
         }
-        return data;
+        return { ...data, user: await apiService.auth.me() };
       } catch (err) {
         console.warn('[API Auth] signup fallback/error:', err);
         return null;
@@ -111,7 +119,7 @@ export const apiService = {
         if (data.accessToken) {
           tokenStorage.setTokens(data.accessToken, data.refreshToken);
         }
-        return data;
+        return { ...data, user: await apiService.auth.me() };
       } catch (err) {
         console.warn('[API Auth] login fallback/error:', err);
         return null;
@@ -159,7 +167,7 @@ export const apiService = {
      * GET /oauth2/authorization/{provider} (github|google)
      */
     startOAuth(provider: 'github' | 'google') {
-      const url = `${API_BASE_URL}/oauth2/authorization/${provider}`;
+      const url = `${OAUTH_BASE_URL}/oauth2/authorization/${provider}`;
       window.location.href = url;
     },
   },
@@ -178,15 +186,10 @@ export const apiService = {
     },
 
     async create(payload: {
-      title: string;
-      description?: string;
-      role?: string;
+      name: string;
       period?: string;
-      teamSize?: number;
+      members: number;
       techStack?: string[];
-      githubRepo?: string;
-      figmaUrl?: string;
-      notionUrl?: string;
     }) {
       try {
         const res = await fetchWithAuth('/api/projects', {
@@ -216,7 +219,7 @@ export const apiService = {
       try {
         const res = await fetchWithAuth(`/api/projects/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(`Delete project failed (${res.status})`);
-        return await res.json();
+        return true;
       } catch (err) {
         console.warn('[API Projects] delete error:', err);
         return null;
@@ -224,7 +227,7 @@ export const apiService = {
     },
 
     // Sources (/api/projects/{id}/sources)
-    async addSource(projectId: string, payload: { type: string; url?: string; token?: string; name?: string }) {
+    async addSource(projectId: string, payload: { type: 'GITHUB' | 'GDRIVE' | 'NOTION' | 'UPLOAD'; externalRef?: string }) {
       try {
         const res = await fetchWithAuth(`/api/projects/${projectId}/sources`, {
           method: 'POST',
@@ -244,7 +247,7 @@ export const apiService = {
           method: 'DELETE',
         });
         if (!res.ok) throw new Error(`Remove source failed (${res.status})`);
-        return await res.json();
+        return true;
       } catch (err) {
         console.warn('[API Sources] removeSource error:', err);
         return null;
@@ -333,11 +336,11 @@ export const apiService = {
       }
     },
 
-    async sendChatMessage(projectId: string, message: string) {
+    async sendChatMessage(projectId: string, question: string) {
       try {
         const res = await fetchWithAuth(`/api/projects/${projectId}/chat`, {
           method: 'POST',
-          body: JSON.stringify({ message }),
+          body: JSON.stringify({ question }),
         });
         if (!res.ok) throw new Error(`Send chat message failed (${res.status})`);
         return await res.json();
@@ -362,18 +365,11 @@ export const apiService = {
     },
 
     // Cover Letter & Interview Draft Generation (/api/projects/{id}/interview)
-    async generateInterviewOrCoverLetter(
-      projectId: string,
-      payload: {
-        type?: 'cover_letter' | 'interview_qa' | 'portfolio';
-        question?: string;
-        jobRole?: string;
-      }
-    ) {
+    async generateInterviewOrCoverLetter(projectId: string, payload: { question: string }) {
       try {
         const res = await fetchWithAuth(`/api/projects/${projectId}/interview`, {
           method: 'POST',
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ question: payload.question }),
         });
         if (!res.ok) throw new Error(`Generate draft failed (${res.status})`);
         return await res.json();
@@ -397,27 +393,16 @@ export const apiService = {
       }
     },
 
-    async setNotionToken(token: string, workspaceName?: string) {
+    async setNotionToken(token: string) {
       try {
         const res = await fetchWithAuth('/api/integrations/notion', {
           method: 'PUT',
-          body: JSON.stringify({ token, workspaceName }),
+          body: JSON.stringify({ token }),
         });
         if (!res.ok) throw new Error(`Set notion token failed (${res.status})`);
-        return await res.json();
+        return true;
       } catch (err) {
         console.warn('[API Integrations] setNotionToken error:', err);
-        return null;
-      }
-    },
-
-    async getNotionStatus() {
-      try {
-        const res = await fetchWithAuth('/api/integrations/notion', { method: 'GET' });
-        if (!res.ok) throw new Error(`Get notion status failed (${res.status})`);
-        return await res.json();
-      } catch (err) {
-        console.warn('[API Integrations] getNotionStatus error:', err);
         return null;
       }
     },

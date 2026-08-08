@@ -77,7 +77,7 @@ export const FloatingChatbot: React.FC<FloatingChatbotProps> = ({
       // Fetch RAG Q&A response from Spring Boot Backend (POST /api/projects/{id}/chat)
       const res = await apiService.projects.sendChatMessage(selectedProjectId, queryText);
 
-      const fullResponse = res?.reply || res?.message || `'${currentProject?.title || '선택한 프로젝트'}'에 대한 답변해 드립니다.
+      const fullResponse = res?.content || `'${currentProject?.title || '선택한 프로젝트'}'에 대한 답변해 드립니다.
 
 질문 내용: "${queryText}"
 

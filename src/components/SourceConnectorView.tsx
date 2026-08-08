@@ -72,10 +72,10 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
     if (!notionTokenInput) return;
     setIsSavingNotion(true);
     try {
-      const res = await apiService.integrations.setNotionToken(notionTokenInput, notionWorkspaceInput);
+      await apiService.integrations.setNotionToken(notionTokenInput);
       setNotionStatus({
         connected: true,
-        workspaceName: res?.workspaceName || notionWorkspaceInput || '연결된 노션 워크스페이스',
+        workspaceName: notionWorkspaceInput || '연결된 노션 워크스페이스',
         tokenMasked: `secret_notion_****_${notionTokenInput.slice(-4)}`,
         lastSyncedAt: new Date().toISOString(),
       });

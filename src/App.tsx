@@ -143,19 +143,15 @@ export default function App() {
 
     // Try creating via Spring API POST /api/projects
     const apiRes = await apiService.projects.create({
-      title: newProjData.title,
-      description: newProjData.description,
-      role: newProjData.role,
+      name: newProjData.title,
       period: newProjData.period,
-      teamSize: typeof newProjData.teamSize === 'number' ? newProjData.teamSize : parseInt(String(newProjData.teamSize || 1), 10),
+      members: typeof newProjData.teamSize === 'number' ? newProjData.teamSize : parseInt(String(newProjData.teamSize || 1), 10),
       techStack: newProjData.techStack,
-      githubRepo: newProjData.githubRepo,
-      notionUrl: newProjData.notionUrl,
     });
 
     const createdProject: Project = {
       ...newProjData,
-      id: apiRes?.id || newId,
+      id: apiRes ? String(apiRes.id) : newId,
       createdAt: todayStr,
       lastUpdated: todayStr,
       filesCount: 1,
@@ -232,7 +228,7 @@ export default function App() {
     try {
       // Call Spring Boot Backend API (POST /api/projects/{id}/interview)
       const res = await apiService.projects.generateInterviewOrCoverLetter(projId, {
-        type: 'portfolio',
+        question: `'${targetProject.title}' 프로젝트의 포트폴리오를 한 줄 요약, 아키텍처, 핵심 기여, 트러블슈팅(STAR), 회고 순서로 정리해줘.`,
       });
 
       if (res && res.portfolio) {
@@ -320,13 +316,22 @@ export default function App() {
     try {
       // Call Spring Boot Backend API (POST /api/projects/{id}/interview)
       const res = await apiService.projects.generateInterviewOrCoverLetter(projId, {
-        type: 'cover_letter',
-        question,
-        jobRole,
+        question: `[지원 직무: ${jobRole}] ${question}`,
       });
 
-      if (res && res.coverLetter) {
-        setCoverLetters((prev) => [res.coverLetter, ...prev]);
+      if (res && res.answer) {
+        setCoverLetters((prev) => [
+          {
+            id: `cl-${Date.now()}`,
+            question,
+            jobTarget: jobRole,
+            selectedProjectId: projId,
+            projectTitle: targetProject.title,
+            generatedAnswer: res.answer,
+            createdAt: new Date().toLocaleDateString(),
+          },
+          ...prev,
+        ]);
       } else {
         const generatedAnswer = `[지원 직무: ${jobRole}]
 ${question}에 대하여, 저는 '${targetProject.title}' 프로젝트 경험을 바탕으로 답변을 구성하였습니다.
@@ -371,11 +376,21 @@ ${question}에 대하여, 저는 '${targetProject.title}' 프로젝트 경험을
     try {
       // Call Spring Boot Backend API (POST /api/projects/{id}/interview)
       const res = await apiService.projects.generateInterviewOrCoverLetter(projId, {
-        type: 'interview_qa',
+        question: `'${targetProject.title}' 프로젝트로 받을 만한 실전 기술 면접 예상 질문과 모범 답변을 뽑아줘.`,
       });
 
-      if (res && Array.isArray(res.items)) {
-        setInterviewItems(res.items);
+      if (res && res.answer) {
+        setInterviewItems([
+          {
+            id: `int-${Date.now()}`,
+            projectId: projId,
+            category: '기술적 의사결정',
+            question: `'${targetProject.title}' 기술 면접 예상 질문`,
+            sampleAnswer: res.answer,
+            keyCheckingPoints: [],
+            followUpQuestions: [],
+          },
+        ]);
       } else {
         const formattedItems: InterviewPrepItem[] = [
           {
