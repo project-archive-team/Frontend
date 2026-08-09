@@ -150,7 +150,7 @@ export const CareerToolsView: React.FC<CareerToolsViewProps> = ({
                   <input
                     type="text"
                     disabled
-                    value={currentProject.title}
+                    value={currentProject?.title ?? ""}
                     className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 cursor-not-allowed"
                   />
                 </div>
@@ -248,7 +248,7 @@ export const CareerToolsView: React.FC<CareerToolsViewProps> = ({
                 프로젝트 아키텍처 기반 실전 기술 면접 예상 질문 제안
               </h2>
               <p className="text-xs text-slate-500 mt-1">
-                [{currentProject.title}]의 기술 스택 및 트러블슈팅을 바탕으로 면접관이 실제로 물어볼 핵심 질문과 모범 답변을 도출합니다.
+                [{currentProject?.title ?? ""}]의 기술 스택 및 트러블슈팅을 바탕으로 면접관이 실제로 물어볼 핵심 질문과 모범 답변을 도출합니다.
               </p>
             </div>
 

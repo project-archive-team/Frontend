@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Project, ProjectArtifact, SourceView, User } from '../types';
 import { apiService } from '../services/api';
+import { ConfirmDialog, ConfirmDialogState } from './ConfirmDialog';
 
 interface SourceConnectorViewProps {
   projects: Project[];
@@ -71,12 +72,19 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
   const [syncProgress, setSyncProgress] = useState<number | null>(null);
   const [syncMessage, setSyncMessage] = useState<string>('');
   const pollTimer = useRef<number | null>(null);
+  const [dialog, setDialog] = useState<ConfirmDialogState | null>(null);
+  const [sourceRefInput, setSourceRefInput] = useState('');
+  const [isSavingSource, setIsSavingSource] = useState(false);
 
   const currentProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
   const currentArtifacts = artifacts.filter((a) => a.projectId === selectedProjectId);
-  const activeSourceRef = sources.find(
-    (s) => s.type === (activeService === 'github' ? 'GITHUB' : 'GDRIVE')
-  )?.externalRef;
+  // github/drive 탭은 각자의 소스만 본다. 하나로 뭉쳐 보여주면 Drive 탭에서 GitHub 저장소가 떠서
+  // 주소가 고정된 것처럼 보인다.
+  const activeType: SourceView['type'] = activeService === 'github' ? 'GITHUB' : 'GDRIVE';
+  const activeSources = sources.filter((s) => s.type === activeType);
+  const activeSourceRef = activeSources[0]?.externalRef;
+  const activeLabel = activeService === 'github' ? 'GitHub' : 'Google Drive';
+  const activeConnected = activeService === 'github' ? Boolean(connected?.github) : Boolean(connected?.googleDrive);
 
   // 백엔드가 워크스페이스 이름을 저장하지 않는다 — 토큰 보유 여부만 사실대로 보여준다.
   const notionStatus = {
@@ -98,13 +106,103 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
       await apiService.integrations.setNotionToken(notionTokenInput);
       setNotionTokenInput('');
       await onIntegrationsChanged();
-      alert('Notion 통합 토큰이 저장되었습니다.');
+      setDialog({ title: 'Notion 연결 완료', message: 'Integration 토큰이 저장되었습니다.', noticeOnly: true });
     } catch (err) {
       console.error(err);
-      alert(err instanceof Error ? err.message : 'Notion 토큰 저장 중 오류가 발생했습니다.');
+      setDialog({
+        title: 'Notion 토큰 저장 실패',
+        message: err instanceof Error ? err.message : '토큰 저장 중 오류가 발생했습니다.',
+        noticeOnly: true,
+      });
     } finally {
       setIsSavingNotion(false);
     }
+  };
+
+  /** 수집 대상 등록. 프로젝트 생성 뒤에도 여기서 추가·교체할 수 있어야 한다. */
+  const handleAddSource = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const ref = sourceRefInput.trim();
+    if (!ref || !selectedProjectId) return;
+    setIsSavingSource(true);
+    try {
+      await apiService.projects.addSource(Number(selectedProjectId), { type: activeType, externalRef: ref });
+      setSourceRefInput('');
+      await onSyncFinished();
+    } catch (err) {
+      setDialog({
+        title: '수집 대상 등록 실패',
+        message: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.',
+        noticeOnly: true,
+      });
+    } finally {
+      setIsSavingSource(false);
+    }
+  };
+
+  const handleRemoveSource = async (sourceId: number) => {
+    try {
+      await apiService.projects.removeSource(Number(selectedProjectId), sourceId);
+      await onSyncFinished();
+    } catch (err) {
+      setDialog({
+        title: '수집 대상 삭제 실패',
+        message: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.',
+        noticeOnly: true,
+      });
+    }
+  };
+
+  /**
+   * 이 프로젝트가 실제로 등록한 소스 중 아직 계정이 연결되지 않은 게 있으면 여기서 연결시킨다.
+   *
+   * GitHub/Google은 OAuth라 페이지를 떠났다 돌아온다 — 돌아왔을 때 이 화면으로 복귀하도록
+   * 목적지를 남겨둔다. Notion은 토큰 붙여넣기라 같은 화면의 탭만 바꾼다.
+   *
+   * @returns 동기화를 계속해도 되면 true
+   */
+  const ensureConnected = (): boolean => {
+    const need = (type: SourceView['type']) => sources.some((s) => s.type === type);
+
+    if (sources.length === 0) {
+      setDialog({
+        title: '수집 대상이 없습니다',
+        message:
+          '이 프로젝트에 등록된 수집 대상이 하나도 없습니다.\n아래 입력란에 저장소 주소를 등록한 뒤 다시 동기화해 주세요.',
+        noticeOnly: true,
+      });
+      return false;
+    }
+
+    if (need('NOTION') && !connected?.notion) {
+      setActiveService('notion');
+      setDialog({
+        title: 'Notion 토큰이 필요합니다',
+        message:
+          'Notion은 OAuth가 아니라 Integration 토큰으로 연결합니다.\n아래 입력란에 토큰을 저장한 뒤 다시 동기화해 주세요.',
+        noticeOnly: true,
+      });
+      return false;
+    }
+
+    const missing = need('GITHUB') && !connected?.github
+      ? { provider: 'github' as const, label: 'GitHub' }
+      : need('GDRIVE') && !connected?.googleDrive
+      ? { provider: 'google' as const, label: 'Google' }
+      : null;
+
+    if (!missing) return true;
+
+    setDialog({
+      title: `${missing.label} 로그인이 필요합니다`,
+      message: `${missing.label} 계정이 연결되어 있지 않아 수집할 수 없습니다.\n로그인하면 이 화면으로 돌아와 바로 동기화할 수 있습니다.`,
+      confirmLabel: `${missing.label}로 로그인`,
+      onConfirm: () => {
+        sessionStorage.setItem('return_tab', 'connectors');
+        apiService.auth.startOAuth(missing.provider);
+      },
+    });
+    return false;
   };
 
   /**
@@ -114,6 +212,9 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
   const handleTriggerAsyncSync = async () => {
     if (!selectedProjectId) return;
     const projectId = Number(selectedProjectId);
+
+    // 토큰이 없으면 수집기가 소스를 FAILED로 떨구고 끝난다. 돌리기 전에 연결부터 잡는다.
+    if (!ensureConnected()) return;
 
     setIsSyncingAsync(true);
     setSyncProgress(5);
@@ -125,7 +226,11 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
       setIsSyncingAsync(false);
       setSyncProgress(null);
       setSyncMessage('');
-      alert(err instanceof Error ? err.message : '동기화를 시작하지 못했습니다.');
+      setDialog({
+        title: '동기화를 시작하지 못했습니다',
+        message: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.',
+        noticeOnly: true,
+      });
       return;
     }
 
@@ -212,6 +317,8 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
 
   return (
     <div className="space-y-8 animate-fadeIn break-keep">
+      <ConfirmDialog state={dialog} onClose={() => setDialog(null)} />
+
       {/* Top Banner */}
       <div className="bg-white rounded-2xl p-6 md:p-8 border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -355,7 +462,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
               </div>
 
               <span className="text-xs text-slate-800 font-semibold bg-slate-100 border border-slate-200 px-3 py-1 rounded-lg">
-                [{currentProject.title}] 선택됨
+                [{currentProject?.title ?? ""}] 선택됨
               </span>
             </div>
 
@@ -505,32 +612,65 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
         {activeService !== 'upload' && activeService !== 'notion' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-slate-900 capitalize">
-                {activeService} 연동 가이드 및 자동 동기화
+              <h2 className="text-base font-bold text-slate-900">
+                {activeLabel} 연동 가이드 및 자동 동기화
               </h2>
-              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full flex items-center gap-1">
+              <span
+                className={
+                  activeConnected
+                    ? 'px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full flex items-center gap-1'
+                    : 'px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-full flex items-center gap-1'
+                }
+              >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                {(activeService === 'github' ? connected?.github : connected?.googleDrive)
-                  ? 'OAuth 2.0 연결됨'
-                  : `${activeService === 'github' ? 'GitHub' : 'Google'} 로그인 필요`}
+                {activeConnected ? 'OAuth 2.0 연결됨' : `${activeLabel} 로그인 필요`}
               </span>
             </div>
 
             <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 text-xs text-slate-700">
               <p className="leading-relaxed">
-                선택하신 <strong>{activeService.toUpperCase()}</strong> 수집기입니다.
+                선택하신 <strong>{activeLabel}</strong> 수집기입니다.
                 {activeSourceRef
                   ? ` 등록된 대상: ${activeSourceRef}`
-                  : ' 이 프로젝트에 등록된 대상이 없습니다. 프로젝트 생성 시 저장소 주소를 입력하면 수집 대상이 됩니다.'}
+                  : ` 이 프로젝트에 등록된 ${activeLabel} 대상이 없습니다. 프로젝트 생성 시 주소를 입력하면 수집 대상이 됩니다.`}
               </p>
 
-              {/* 등록된 소스별 최근 수집 결과 */}
-              {sources.length > 0 && (
+              {/* 수집 대상 등록 — 소스가 하나도 없으면 동기화 자체가 400으로 막힌다. */}
+              <form onSubmit={handleAddSource} className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={sourceRefInput}
+                  onChange={(e) => setSourceRefInput(e.target.value)}
+                  placeholder={
+                    activeService === 'github'
+                      ? 'https://github.com/org/repo'
+                      : 'Google Drive 폴더 ID'
+                  }
+                  className="flex-1 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+                <button
+                  type="submit"
+                  disabled={isSavingSource || !sourceRefInput.trim()}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold text-xs rounded-xl transition-colors shrink-0"
+                >
+                  {isSavingSource ? '등록 중...' : '수집 대상 등록'}
+                </button>
+              </form>
+
+              {/* 지금 보고 있는 수집기의 소스만 — 탭을 바꿔도 다른 소스가 남아 보이면 안 된다. */}
+              {activeSources.length > 0 && (
                 <div className="space-y-1.5">
-                  {sources.map((s) => (
+                  {activeSources.map((s) => (
                     <div key={s.id} className="flex items-center justify-between gap-3">
                       <span className="font-semibold text-slate-800">{s.type}</span>
                       <span className="text-slate-500 truncate flex-1">{s.externalRef || '(전체)'}</span>
+                      <button
+                        onClick={() => handleRemoveSource(s.id)}
+                        className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                        title="수집 대상 삭제"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                       <span
                         className={
                           s.status === 'FAILED'

@@ -51,7 +51,7 @@ export const PortfolioArchiveView: React.FC<PortfolioArchiveViewProps> = ({
   const handleCopyMarkdown = () => {
     if (!portfolio) return;
 
-    const mdText = `# ${currentProject.title} - 개발자 포트폴리오
+    const mdText = `# ${currentProject?.title ?? ""} - 개발자 포트폴리오
 
 ## 1. 프로젝트 한 줄 요약 (Executive Summary)
 - **한 줄 요약**: ${portfolio.executiveSummary.oneLineSummary}
@@ -239,7 +239,7 @@ ${portfolio.troubleshootingList
                   <span>최종 AI 동기화: {portfolio.updatedAt}</span>
                 </div>
                 <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
-                  {currentProject.title}
+                  {currentProject?.title ?? ""}
                 </h1>
                 <p className="text-base text-slate-700 font-medium leading-relaxed bg-blue-50/70 p-4 rounded-2xl border border-blue-200/60">
                   “{portfolio.executiveSummary.oneLineSummary}”

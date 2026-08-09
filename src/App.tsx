@@ -66,6 +66,13 @@ export default function App() {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
+    // 연동하려고 OAuth로 떠났던 화면으로 되돌려준다.
+    const returnTab = sessionStorage.getItem('return_tab');
+    if (returnTab) {
+      sessionStorage.removeItem('return_tab');
+      setActiveTab(returnTab as NavTab);
+    }
+
     if (!tokenStorage.getAccessToken()) {
       setIsBootstrapping(false);
       return;
