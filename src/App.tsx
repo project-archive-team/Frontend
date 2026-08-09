@@ -18,7 +18,7 @@ import { CareerToolsView } from './components/CareerToolsView';
 import { MyPageView } from './components/MyPageView';
 import { FloatingChatbot } from './components/FloatingChatbot';
 import { NewProjectModal } from './components/NewProjectModal';
-import { apiService, tokenStorage } from './services/api';
+import { ApiError, apiService, tokenStorage } from './services/api';
 import {
   toArtifact,
   toCoverLetter,
@@ -32,6 +32,32 @@ import {
 function describeError(err: unknown, fallback: string): string {
   console.error(err);
   return err instanceof Error && err.message ? err.message : fallback;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * 색인이 끝날 때까지 진행 상황을 알리며 기다린다.
+ *
+ * 임베딩은 분당 쿼터가 있어 자료가 많으면 몇 분씩 걸린다. 그동안 화면이 멈춰 보이면 안 된다.
+ */
+async function waitForIndexing(projectId: number, onProgress: (message: string) => void) {
+  for (let i = 0; i < 200; i++) {
+    const status = await apiService.projects.syncStatus(projectId);
+    if (status.indexedArtifacts >= status.artifacts) {
+      return;
+    }
+    onProgress(`AI 색인 중 ${status.indexedArtifacts}/${status.artifacts}건...`);
+    // 색인이 멈춘 채 상태만 되돌아온 경우(쿼터 초과 등) 무한히 기다리지 않는다.
+    if (status.status === 'PENDING' && i > 2) {
+      throw new Error(
+        `색인이 중단되었습니다 (${status.indexedArtifacts}/${status.artifacts}건 완료). ` +
+          '다시 시도하면 남은 자료부터 이어서 처리합니다.'
+      );
+    }
+    await sleep(3000);
+  }
+  throw new Error('색인이 예상보다 오래 걸립니다. 잠시 후 다시 시도해 주세요.');
 }
 
 export default function App() {
@@ -54,6 +80,8 @@ export default function App() {
   const [isGeneratingPortfolio, setIsGeneratingPortfolio] = useState(false);
   const [isGeneratingCL, setIsGeneratingCL] = useState(false);
   const [isGeneratingQA, setIsGeneratingQA] = useState(false);
+  // 색인 대기 중 화면에 띄울 진행 문구.
+  const [aiProgress, setAiProgress] = useState<string | null>(null);
 
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
 
@@ -305,13 +333,44 @@ export default function App() {
     await reloadProjects(selectedProjectId);
   };
 
+  /**
+   * 색인이 끝나 있으면 바로 생성하고, 아직이면 백엔드가 색인을 걸고 409를 준다.
+   * 그 경우 진행 상황을 보여주며 기다렸다가 자동으로 다시 생성한다 —
+   * 사용자가 동기화 화면으로 건너가 색인을 따로 돌려야 할 이유가 없다.
+   */
+  const runWithIndexing = async <T,>(projId: string, run: () => Promise<T>): Promise<T | null> => {
+    try {
+      return await run();
+    } catch (err) {
+      if (!(err instanceof ApiError && err.status === 409)) {
+        alert(describeError(err, 'AI 생성에 실패했습니다.'));
+        return null;
+      }
+      // 수집 자체가 안 된 경우는 기다려도 소용없다.
+      if (err.message.includes('수집된 자료가 없습니다')) {
+        alert(err.message);
+        return null;
+      }
+      try {
+        await waitForIndexing(Number(projId), setAiProgress);
+        setAiProgress('색인 완료. 자료를 정리하는 중입니다...');
+        return await run();
+      } catch (retryErr) {
+        alert(describeError(retryErr, '색인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.'));
+        return null;
+      } finally {
+        setAiProgress(null);
+      }
+    }
+  };
+
   const handleRegeneratePortfolio = async (projId: string) => {
     setIsGeneratingPortfolio(true);
     try {
-      const report = await apiService.projects.portfolio(Number(projId));
-      setPortfolios((prev) => ({ ...prev, [projId]: toPortfolioData(report, projId) }));
-    } catch (err) {
-      alert(describeError(err, '포트폴리오 생성에 실패했습니다. 먼저 산출물을 수집해 주세요.'));
+      const report = await runWithIndexing(projId, () => apiService.projects.portfolio(Number(projId)));
+      if (report) {
+        setPortfolios((prev) => ({ ...prev, [projId]: toPortfolioData(report, projId) }));
+      }
     } finally {
       setIsGeneratingPortfolio(false);
     }
@@ -321,10 +380,12 @@ export default function App() {
     const title = projects.find((p) => p.id === projId)?.title ?? '';
     setIsGeneratingCL(true);
     try {
-      const star = await apiService.projects.careerStar(Number(projId), { jobRole, question });
-      setCoverLetters((prev) => [toCoverLetter(star, projId, title), ...prev]);
-    } catch (err) {
-      alert(describeError(err, '자소서 생성에 실패했습니다. 먼저 산출물을 수집해 주세요.'));
+      const star = await runWithIndexing(projId, () =>
+        apiService.projects.careerStar(Number(projId), { jobRole, question })
+      );
+      if (star) {
+        setCoverLetters((prev) => [toCoverLetter(star, projId, title), ...prev]);
+      }
     } finally {
       setIsGeneratingCL(false);
     }
@@ -334,10 +395,12 @@ export default function App() {
     const jobRole = user?.jobTitle || '백엔드 엔지니어';
     setIsGeneratingQA(true);
     try {
-      const res = await apiService.projects.interviewQuestions(Number(projId), { jobRole, questionCount: 3 });
-      setInterviewItems(res.questions.map((q, i) => toInterviewItem(q, projId, i)));
-    } catch (err) {
-      alert(describeError(err, '면접 질문 생성에 실패했습니다. 먼저 산출물을 수집해 주세요.'));
+      const res = await runWithIndexing(projId, () =>
+        apiService.projects.interviewQuestions(Number(projId), { jobRole, questionCount: 3 })
+      );
+      if (res) {
+        setInterviewItems(res.questions.map((q, i) => toInterviewItem(q, projId, i)));
+      }
     } finally {
       setIsGeneratingQA(false);
     }
@@ -412,6 +475,7 @@ export default function App() {
               onRegeneratePortfolio={handleRegeneratePortfolio}
               artifacts={artifacts}
               isGenerating={isGeneratingPortfolio}
+              progressMessage={aiProgress}
             />
           )}
 

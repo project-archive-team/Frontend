@@ -27,6 +27,8 @@ interface PortfolioArchiveViewProps {
   onRegeneratePortfolio: (projectId: string) => Promise<void>;
   artifacts: ProjectArtifact[];
   isGenerating: boolean;
+  /** 색인 대기처럼 오래 걸리는 단계에서 지금 무엇을 하는 중인지 알린다. */
+  progressMessage?: string | null;
 }
 
 export const PortfolioArchiveView: React.FC<PortfolioArchiveViewProps> = ({
@@ -37,6 +39,7 @@ export const PortfolioArchiveView: React.FC<PortfolioArchiveViewProps> = ({
   onRegeneratePortfolio,
   artifacts,
   isGenerating,
+  progressMessage,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'portfolio' | 'viewer' | 'commits'>('portfolio');
   const [copiedMarkdown, setCopiedMarkdown] = useState(false);
@@ -144,7 +147,9 @@ ${portfolio.troubleshootingList
               className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 whitespace-nowrap"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
-              <span className="whitespace-nowrap">{isGenerating ? 'AI 분석 및 포트폴리오 생성 중...' : 'AI 포트폴리오 자동 구조화'}</span>
+              <span className="whitespace-nowrap">
+                {isGenerating ? progressMessage ?? 'AI 분석 및 포트폴리오 생성 중...' : 'AI 포트폴리오 자동 구조화'}
+              </span>
             </button>
 
             {/* Export Buttons */}

@@ -176,6 +176,9 @@ export interface ProjectDetailView {
 export interface SyncStatusView {
   status: ProjectStatus;
   sources: SourceView[];
+  /** 수집된 자료 수와 그중 AI 색인이 끝난 수. 색인이 남아 있으면 AI는 근거를 못 찾는다. */
+  artifacts: number;
+  indexedArtifacts: number;
 }
 
 export interface ArtifactView {
