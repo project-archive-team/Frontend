@@ -137,7 +137,15 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
   const handleAddSource = async (e: React.FormEvent) => {
     e.preventDefault();
     const ref = sourceRefInput.trim();
-    if (!ref || !selectedProjectId) return;
+    if (!ref) return;
+    if (!selectedProjectId) {
+      setDialog({
+        title: '프로젝트가 필요합니다',
+        message: '수집 대상은 프로젝트에 붙습니다.\n왼쪽 위 [+ 생성]으로 프로젝트를 먼저 만들어 주세요.',
+        noticeOnly: true,
+      });
+      return;
+    }
     setIsSavingSource(true);
     try {
       const added = await apiService.projects.addSource(Number(selectedProjectId), {
@@ -260,7 +268,15 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
    * 진행률은 "끝난 소스 / 전체 소스"로 계산한다 — 백엔드가 퍼센트를 주지 않는다.
    */
   const handleTriggerAsyncSync = async () => {
-    if (!selectedProjectId) return;
+    // 프로젝트가 없으면 조용히 아무것도 안 하는 게 아니라, 무엇을 해야 하는지 알려준다.
+    if (!selectedProjectId) {
+      setDialog({
+        title: '프로젝트가 필요합니다',
+        message: '수집은 프로젝트 단위로 이뤄집니다.\n왼쪽 위 [+ 생성]으로 프로젝트를 먼저 만들어 주세요.',
+        noticeOnly: true,
+      });
+      return;
+    }
     const projectId = Number(selectedProjectId);
 
     // 토큰이 없으면 수집기가 소스를 FAILED로 떨구고 끝난다. 돌리기 전에 연결부터 잡는다.
@@ -349,7 +365,15 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
 
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fileTitle.trim() || !fileContent.trim() || !selectedProjectId) return;
+    if (!fileTitle.trim() || !fileContent.trim()) return;
+    if (!selectedProjectId) {
+      setDialog({
+        title: '프로젝트가 필요합니다',
+        message: '산출물은 프로젝트에 등록됩니다.\n왼쪽 위 [+ 생성]으로 프로젝트를 먼저 만들어 주세요.',
+        noticeOnly: true,
+      });
+      return;
+    }
 
     setIsUploading(true);
     setUploadProgress(35);
