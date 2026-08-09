@@ -126,9 +126,21 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
     if (!ref || !selectedProjectId) return;
     setIsSavingSource(true);
     try {
-      await apiService.projects.addSource(Number(selectedProjectId), { type: activeType, externalRef: ref });
+      const added = await apiService.projects.addSource(Number(selectedProjectId), {
+        type: activeType,
+        externalRef: ref,
+      });
       setSourceRefInput('');
       await onSyncFinished();
+      if (added.length > 1) {
+        setDialog({
+          title: `저장소 ${added.length}개를 등록했습니다`,
+          message: `조직 아래 저장소를 각각의 수집 대상으로 나눴습니다.\n\n${added
+            .map((s) => `· ${s.externalRef}`)
+            .join('\n')}\n\n필요 없는 저장소는 목록에서 삭제할 수 있습니다.`,
+          noticeOnly: true,
+        });
+      }
     } catch (err) {
       setDialog({
         title: '수집 대상 등록 실패',
@@ -643,7 +655,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
                   onChange={(e) => setSourceRefInput(e.target.value)}
                   placeholder={
                     activeService === 'github'
-                      ? 'https://github.com/org/repo'
+                      ? 'https://github.com/org/repo 또는 조직 주소(저장소별로 자동 분리)'
                       : 'Google Drive 폴더 ID'
                   }
                   className="flex-1 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"

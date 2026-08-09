@@ -189,8 +189,9 @@ export const apiService = {
 
     remove: (id: number) => request<void>(`/api/projects/${id}`, { method: 'DELETE' }),
 
+    /** 조직 주소를 넣으면 저장소별로 펼쳐져 여러 건이 돌아온다. */
     addSource: (projectId: number, payload: { type: SourceType; externalRef?: string | null }) =>
-      request<SourceView>(`/api/projects/${projectId}/sources`, { method: 'POST', ...json(payload) }),
+      request<SourceView[]>(`/api/projects/${projectId}/sources`, { method: 'POST', ...json(payload) }),
 
     removeSource: (projectId: number, sourceId: number) =>
       request<void>(`/api/projects/${projectId}/sources/${sourceId}`, { method: 'DELETE' }),
