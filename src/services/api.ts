@@ -169,6 +169,28 @@ export const apiService = {
     startOAuth(provider: 'github' | 'google') {
       window.location.href = `${OAUTH_BASE_URL}/oauth2/authorization/${provider}`;
     },
+
+    /**
+     * 로그인한 계정에 provider를 연결한다.
+     *
+     * 콜백에는 우리 JWT가 실리지 않아 백엔드는 provider 이메일로 계정을 찾는다. 가입 이메일과
+     * GitHub 이메일이 다르면 같은 사람인데 계정이 하나 더 생긴다. 그래서 이동 전에
+     * "이 계정에 붙여라"를 세션에 남긴다 — 세션 쿠키가 백엔드 도메인에 있어야 하므로
+     * 프록시를 거치지 않고 직접 호출하고 쿠키를 함께 보낸다.
+     */
+    async linkProvider(provider: 'github' | 'google') {
+      try {
+        await fetch(`${OAUTH_BASE_URL}/api/auth/link-intent`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { Authorization: `Bearer ${tokenStorage.getAccessToken()}` },
+        });
+      } catch (err) {
+        // 실패해도 로그인 자체는 되게 둔다 — 이메일이 같으면 어차피 같은 계정으로 붙는다.
+        console.warn('계정 연결 표시에 실패했습니다. 이메일이 같으면 그대로 연결됩니다.', err);
+      }
+      window.location.href = `${OAUTH_BASE_URL}/oauth2/authorization/${provider}`;
+    },
   },
 
   projects: {

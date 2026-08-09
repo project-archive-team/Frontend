@@ -192,7 +192,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
         if (pendingRef) {
           sessionStorage.setItem('pending_source_ref', pendingRef);
         }
-        apiService.auth.startOAuth(provider);
+        apiService.auth.linkProvider(provider);
       },
     });
   };
@@ -257,7 +257,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
       onConfirm: () => {
         sessionStorage.setItem('return_tab', 'connectors');
         sessionStorage.setItem('return_service', missing.provider === 'github' ? 'github' : 'drive');
-        apiService.auth.startOAuth(missing.provider);
+        apiService.auth.linkProvider(missing.provider);
       },
     });
     return false;

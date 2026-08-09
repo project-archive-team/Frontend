@@ -169,7 +169,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
         return;
       }
       // 돌아오면 App이 토큰을 저장하고 연동 상태를 다시 읽는다.
-      apiService.auth.startOAuth(providerName as 'github' | 'google');
+      apiService.auth.linkProvider(providerName as 'github' | 'google');
       return;
     }
 
