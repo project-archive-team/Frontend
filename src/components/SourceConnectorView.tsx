@@ -454,7 +454,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
           </div>
           <h3 className="text-sm font-bold text-slate-900 mb-1">Google Drive</h3>
           <p className="text-xs text-slate-500 line-clamp-2">
-            발표 슬라이드(PPT), 프로젝트 기획서(PDF) 자동 로드.
+            PPT·PDF·문서와 코드 파일까지 하위 폴더째 수집.
           </p>
         </div>
 
