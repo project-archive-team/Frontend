@@ -237,6 +237,10 @@ export const apiService = {
     portfolio: (projectId: number) =>
       request<PortfolioReport>(`/api/projects/${projectId}/portfolio`, { method: 'POST' }),
 
+    /** 저장해 둔 리포트. 아직 생성한 적 없으면 204라 undefined가 돌아온다. */
+    savedPortfolio: (projectId: number) =>
+      request<PortfolioReport | undefined>(`/api/projects/${projectId}/portfolio`),
+
     careerStar: (projectId: number, payload: { jobRole: string; question: string }) =>
       request<StarResponse>(`/api/projects/${projectId}/career/star`, { method: 'POST', ...json(payload) }),
 

@@ -147,11 +147,16 @@ export default function App() {
       const numericId = Number(projectId);
       const title = projects.find((p) => p.id === projectId)?.title ?? '';
       try {
-        const [detail, artifactList, timelineList] = await Promise.all([
+        const [detail, artifactList, timelineList, saved] = await Promise.all([
           apiService.projects.detail(numericId),
           apiService.projects.artifacts(numericId),
           apiService.projects.timeline(numericId),
+          // 저장해 둔 포트폴리오를 되살린다 — 없으면 undefined.
+          apiService.projects.savedPortfolio(numericId).catch(() => undefined),
         ]);
+        if (saved) {
+          setPortfolios((prev) => ({ ...prev, [projectId]: toPortfolioData(saved, projectId) }));
+        }
         setSources(detail.sources);
         // 소스에 등록된 저장소 주소를 카드에도 반영한다.
         setProjects((prev) =>

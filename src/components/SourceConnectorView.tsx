@@ -98,6 +98,20 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
     if (pollTimer.current) window.clearTimeout(pollTimer.current);
   }, []);
 
+  // OAuth를 다녀왔으면 보던 탭과 입력값을 되살린다.
+  useEffect(() => {
+    const service = sessionStorage.getItem('return_service');
+    if (service) {
+      sessionStorage.removeItem('return_service');
+      setActiveService(service as typeof activeService);
+    }
+    const pending = sessionStorage.getItem('pending_source_ref');
+    if (pending) {
+      sessionStorage.removeItem('pending_source_ref');
+      setSourceRefInput(pending);
+    }
+  }, []);
+
   const handleSaveNotionToken = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!notionTokenInput) return;
@@ -142,14 +156,37 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
         });
       }
     } catch (err) {
-      setDialog({
-        title: '수집 대상 등록 실패',
-        message: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.',
-        noticeOnly: true,
-      });
+      const reason = err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.';
+      // 조직 등록은 저장소 목록 조회에 토큰이 필요하다. 계정이 안 붙어 있으면 여기서 바로 붙이게 한다.
+      if (!activeConnected) {
+        promptLogin(reason, ref);
+      } else {
+        setDialog({ title: '수집 대상 등록 실패', message: reason, noticeOnly: true });
+      }
     } finally {
       setIsSavingSource(false);
     }
+  };
+
+  /**
+   * 로그인하러 보내는 모달. 돌아왔을 때 이 화면과 입력값을 그대로 살려 두어야
+   * 사용자가 주소를 다시 치지 않는다.
+   */
+  const promptLogin = (reason: string, pendingRef?: string) => {
+    const provider = activeService === 'github' ? ('github' as const) : ('google' as const);
+    setDialog({
+      title: `${activeLabel} 로그인이 필요합니다`,
+      message: `${reason}\n\n로그인하면 이 화면으로 돌아오고, 입력하신 주소도 그대로 남아 있습니다.`,
+      confirmLabel: `${activeLabel}로 로그인`,
+      onConfirm: () => {
+        sessionStorage.setItem('return_tab', 'connectors');
+        sessionStorage.setItem('return_service', activeService);
+        if (pendingRef) {
+          sessionStorage.setItem('pending_source_ref', pendingRef);
+        }
+        apiService.auth.startOAuth(provider);
+      },
+    });
   };
 
   const handleRemoveSource = async (sourceId: number) => {
@@ -211,6 +248,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
       confirmLabel: `${missing.label}로 로그인`,
       onConfirm: () => {
         sessionStorage.setItem('return_tab', 'connectors');
+        sessionStorage.setItem('return_service', missing.provider === 'github' ? 'github' : 'drive');
         apiService.auth.startOAuth(missing.provider);
       },
     });
@@ -251,12 +289,19 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
         const status = await apiService.projects.syncStatus(projectId);
         const total = status.sources.length || 1;
         const settled = status.sources.filter((s) => s.status === 'DONE' || s.status === 'FAILED').length;
-        setSyncProgress(Math.max(10, Math.round((settled / total) * 100)));
-
         const failed = status.sources.filter((s) => s.status === 'FAILED');
+
         if (status.status === 'ANALYZING') {
           const running = status.sources.find((s) => s.status === 'SYNCING');
-          setSyncMessage(running ? `${running.type} 수집 중...` : '소스 파이프라인 진행 중...');
+          // 소스가 다 끝나도 AI 색인이 남아 있다. 수집을 80%까지로 두고 나머지는 색인 몫으로 남긴다 —
+          // 안 그러면 100%를 찍어 놓고 한참 더 기다리게 된다.
+          if (settled === total && !running) {
+            setSyncProgress(90);
+            setSyncMessage('수집 완료. 수집한 자료를 AI가 색인하는 중입니다...');
+          } else {
+            setSyncProgress(Math.max(10, Math.round((settled / total) * 80)));
+            setSyncMessage(running ? `${running.type} 수집 중...` : '소스 파이프라인 진행 중...');
+          }
           pollTimer.current = window.setTimeout(poll, 2000);
           return;
         }
