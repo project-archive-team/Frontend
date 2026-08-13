@@ -100,7 +100,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile Nav Overlay Drawer */}
       {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex flex-col justify-end">
+        <div className="md:hidden fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-xs flex flex-col justify-end">
           <div className="bg-white rounded-t-2xl p-5 space-y-5 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <span className="font-bold text-slate-900 text-sm whitespace-nowrap">메뉴 탐색</span>

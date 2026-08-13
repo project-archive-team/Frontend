@@ -450,7 +450,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
               <Github className="w-5 h-5" />
             </div>
             <span className={connected?.github ? BADGE_ON : BADGE_OFF}>
-              {connected?.github ? '연동 완료' : '로그인 필요'}
+              {connected?.github ? '연결됨' : '연결 필요'}
             </span>
           </div>
           <h3 className="text-sm font-bold text-slate-900 mb-1">GitHub</h3>
@@ -473,7 +473,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
               <HardDrive className="w-5 h-5 text-slate-800" />
             </div>
             <span className={connected?.googleDrive ? BADGE_ON : BADGE_OFF}>
-              {connected?.googleDrive ? '연동 완료' : '로그인 필요'}
+              {connected?.googleDrive ? '연결됨' : '연결 필요'}
             </span>
           </div>
           <h3 className="text-sm font-bold text-slate-900 mb-1">Google Drive</h3>
@@ -496,7 +496,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
               <BookOpen className="w-5 h-5 text-slate-800" />
             </div>
             <span className={connected?.notion ? BADGE_ON : BADGE_OFF}>
-              {connected?.notion ? '연동 완료' : '토큰 필요'}
+              {connected?.notion ? '연결됨' : '토큰 필요'}
             </span>
           </div>
           <h3 className="text-sm font-bold text-slate-900 mb-1">Notion Workspace</h3>
@@ -704,7 +704,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
                 }
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                {activeConnected ? 'OAuth 2.0 연결됨' : `${activeLabel} 로그인 필요`}
+                {activeConnected ? `${activeLabel} 연결됨` : `${activeLabel} 연결 필요`}
               </span>
             </div>
 

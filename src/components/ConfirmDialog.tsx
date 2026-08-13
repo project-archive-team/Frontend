@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AlertCircle, X } from 'lucide-react';
 
 export interface ConfirmDialogState {
@@ -20,6 +20,16 @@ interface ConfirmDialogProps {
  * 모양은 NewProjectModal과 같은 껍데기를 따른다.
  */
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ state, onClose }) => {
+  // 훅은 조건부로 부를 수 없어 early return보다 위에 둔다.
+  useEffect(() => {
+    if (!state) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [state, onClose]);
+
   if (!state) return null;
 
   const confirm = () => {
@@ -28,14 +38,19 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ state, onClose }) 
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs font-sans animate-fadeIn">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs font-sans animate-fadeIn">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden"
+      >
         <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-white">
               <AlertCircle className="w-5 h-5 text-white" />
             </div>
-            <h2 className="text-base font-bold">{state.title}</h2>
+            <h2 id="confirm-dialog-title" className="text-base font-bold">{state.title}</h2>
           </div>
           <button
             onClick={onClose}

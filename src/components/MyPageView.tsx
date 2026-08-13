@@ -323,9 +323,9 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
             {/* Avatar & Basic Info */}
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">성명 (이름)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1" htmlFor="mypage-1">성명 (이름)</label>
                 <div className="relative">
-                  <input
+                  <input id="mypage-1"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -337,9 +337,9 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">이메일 계정</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1" htmlFor="mypage-2">이메일 계정</label>
                 <div className="relative">
-                  <input
+                  <input id="mypage-2"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -352,8 +352,8 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">직무 / 주요 역할</label>
-                <select
+                <label className="block text-xs font-bold text-slate-700 mb-1" htmlFor="mypage-3">직무 / 주요 역할</label>
+                <select id="mypage-3"
                   value={jobTitle}
                   onChange={(e) => setJobTitle(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
@@ -372,8 +372,8 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
             {/* Bio & Intro */}
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">한 줄 개발자 소개 (Bio)</label>
-                <textarea
+                <label className="block text-xs font-bold text-slate-700 mb-1" htmlFor="mypage-4">한 줄 개발자 소개 (Bio)</label>
+                <textarea id="mypage-4"
                   rows={4}
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
@@ -394,7 +394,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
           {/* Tech Stack Management */}
           <div className="pt-6 border-t border-slate-100 space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1.5">주요 기술 스택 설정 (Tech Stack)</label>
+              <label className="block text-xs font-bold text-slate-800 mb-1.5" htmlFor="mypage-5">주요 기술 스택 설정 (Tech Stack)</label>
               <p className="text-xs text-slate-500 mb-3">
                 프로젝트 아카이브 분석 시 보유 기술과 대조할 핵심 스택 태그를 등록하세요.
               </p>
@@ -420,7 +420,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
 
               {/* Add Tech Stack Input */}
               <div className="flex items-center gap-2 max-w-md">
-                <input
+                <input id="mypage-5"
                   type="text"
                   value={newSkillInput}
                   onChange={(e) => setNewSkillInput(e.target.value)}
@@ -466,9 +466,9 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
           <div className="pt-6 border-t border-slate-100 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <label className="block text-xs font-bold text-slate-900">
-                  계정 프로필 사진 연동 (Google & GitHub)
-                </label>
+                <h3 className="block text-xs font-bold text-slate-900">
+                  계정 프로필 사진 연동 (Google &amp; GitHub)
+                </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Google 계정 또는 GitHub 연동 시 해당 소셜 계정의 프로필 사진이 자동으로 표시됩니다.
                 </p>
@@ -506,7 +506,9 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
                   </div>
                   <div className="min-w-0">
                     <span className="block text-xs font-extrabold text-slate-900 leading-tight">Google 계정 사진</span>
-                    <span className="text-[10px] text-slate-500 font-medium truncate block">yongbin.gachon@gmail.com</span>
+                    <span className="text-[10px] text-slate-500 font-medium truncate block">
+                      {connectedServices.googleDrive ? email : 'Google 계정 미연결'}
+                    </span>
                   </div>
                 </div>
 
@@ -547,7 +549,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
                       GitHub 계정 사진
                     </span>
                     <span className={`text-[10px] font-medium truncate block ${provider === 'github' ? 'text-slate-300' : 'text-slate-500'}`}>
-                      dev-github@users.noreply.github.com
+                      {connectedServices.github ? email : 'GitHub 계정 미연결'}
                     </span>
                   </div>
                 </div>
@@ -582,7 +584,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
               </p>
             </div>
             <button
-              onClick={() => showToast('모든 연동 계정의 최신 커밋 및 문서 동기화가 완료되었습니다.')}
+              onClick={() => showToast('동기화는 프로젝트 단위입니다. [소스 연결 & 파일 수집] 화면에서 실행해 주세요.')}
               className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 whitespace-nowrap"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -617,7 +619,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
                 개발 레포지토리의 커밋 내역과 Pull Request 변경사항을 실시간 수집합니다.
               </p>
               <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between">
-                <span className="text-[10px] text-slate-400">마지막 동기화: 방금 전</span>
+                <span className="text-[10px] text-slate-400">{connectedServices.github ? '연결 완료' : '연결되지 않음'}</span>
                 <button
                   onClick={() => toggleService('github')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
@@ -657,7 +659,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
                 Google Docs, Slides 발표자료, PDF 아키텍처 문서를 분석 파이프라인으로 가져옵니다.
               </p>
               <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between">
-                <span className="text-[10px] text-slate-400">마지막 동기화: 10분 전</span>
+                <span className="text-[10px] text-slate-400">{connectedServices.googleDrive ? '연결 완료' : '연결되지 않음'}</span>
                 <button
                   onClick={() => toggleService('googleDrive')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
@@ -697,7 +699,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
                 노션 데이터베이스의 회의록 및 기획서 페이지를 자동 수집 및 포트폴리오로 요약합니다.
               </p>
               <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between">
-                <span className="text-[10px] text-slate-400">마지막 동기화: 1시간 전</span>
+                <span className="text-[10px] text-slate-400">{connectedServices.notion ? '연결 완료' : '연결되지 않음'}</span>
                 <button
                   onClick={() => toggleService('notion')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${

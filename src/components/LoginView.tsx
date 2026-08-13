@@ -20,6 +20,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
   const [isLoading, setIsLoading] = useState(false);
 
+  /** 화면을 바꿀 때 입력값을 비운다 — 특히 비밀번호가 다른 폼에 남아 있으면 안 된다. */
+  const switchMode = (signUp: boolean) => {
+    setIsSignUp(signUp);
+    setPassword('');
+    setConfirmPassword('');
+  };
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -184,7 +191,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
             <button
               type="button"
-              onClick={() => setIsSignUp(false)}
+              onClick={() => switchMode(false)}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
                 !isSignUp ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
               }`}
@@ -193,7 +200,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             </button>
             <button
               type="button"
-              onClick={() => setIsSignUp(true)}
+              onClick={() => switchMode(true)}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
                 isSignUp ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
               }`}
@@ -206,9 +213,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           {!isSignUp ? (
             <form onSubmit={handleEmailLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">이메일</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider" htmlFor="login-1">이메일</label>
                 <div className="relative">
-                  <input
+                  <input id="login-1"
                     type="email"
                     required
                     value={email}
@@ -221,9 +228,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">비밀번호</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider" htmlFor="login-2">비밀번호</label>
                 <div className="relative">
-                  <input
+                  <input id="login-2"
                     type="password"
                     required
                     value={password}
@@ -248,9 +255,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             /* SIGN UP FORM */
             <form onSubmit={handleSignUpSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">이름 (성함)</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider" htmlFor="login-3">이름 (성함)</label>
                 <div className="relative">
-                  <input
+                  <input id="login-3"
                     type="text"
                     required
                     value={name}
@@ -263,9 +270,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">이메일 계정</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider" htmlFor="login-4">이메일 계정</label>
                 <div className="relative">
-                  <input
+                  <input id="login-4"
                     type="email"
                     required
                     value={email}
@@ -278,9 +285,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">직군 / 직무 (Role)</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider" htmlFor="login-5">직군 / 직무 (Role)</label>
                 <div className="relative">
-                  <select
+                  <select id="login-5"
                     value={jobTitle}
                     onChange={(e) => setJobTitle(e.target.value)}
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all duration-200 appearance-none"
@@ -297,12 +304,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">비밀번호</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider" htmlFor="login-6">비밀번호</label>
                 <div className="relative">
-                  <input
+                  <input id="login-6"
                     type="password"
                     required
-                    minLength={6}
+                    minLength={8}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="8자 이상 입력"
@@ -313,9 +320,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">비밀번호 확인</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider" htmlFor="login-7">비밀번호 확인</label>
                 <div className="relative">
-                  <input
+                  <input id="login-7"
                     type="password"
                     required
                     value={confirmPassword}
@@ -395,7 +402,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <>
                 이미 계정이 있으신가요?{' '}
                 <button
-                  onClick={() => setIsSignUp(false)}
+                  onClick={() => switchMode(false)}
                   className="font-semibold text-slate-900 hover:underline"
                 >
                   로그인하기
@@ -405,7 +412,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <>
                 계정이 없으신가요?{' '}
                 <button
-                  onClick={() => setIsSignUp(true)}
+                  onClick={() => switchMode(true)}
                   className="font-semibold text-slate-900 hover:underline"
                 >
                   회원가입하기

@@ -87,9 +87,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     ? Math.round((projects.filter((p) => p.progress === 100).length / projects.length) * 100)
     : 0;
 
+  // 여기서 보여주는 건 "이 프로젝트에 그 소스가 등록됐는가"다. 계정 연결 여부(마이페이지·커넥터)와
+  // 다른 개념이라 같은 단어를 쓰면 화면마다 상태가 어긋나 보인다.
   const statusOf = (type: SourceView['type']) => {
     const source = sources.find((s) => s.type === type);
-    return source ? SOURCE_LABEL[source.status] ?? source.status : '미연결';
+    return source ? SOURCE_LABEL[source.status] ?? source.status : '미등록';
   };
   const isOk = (type: SourceView['type']) => sources.find((s) => s.type === type)?.status === 'DONE';
   // 선택한 프로젝트의 소스 중 몇 개가 수집을 마쳤는지.

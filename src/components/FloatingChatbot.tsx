@@ -149,6 +149,7 @@ export const FloatingChatbot: React.FC<FloatingChatbotProps> = ({
         /* Floating Trigger Button */
         <button
           onClick={() => setIsOpen(true)}
+          aria-label="AI 아카이브 Q&A 챗봇 열기"
           className="group flex items-center gap-2 px-5 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-full shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 border border-slate-700"
         >
           <div className="relative">
@@ -170,7 +171,7 @@ export const FloatingChatbot: React.FC<FloatingChatbotProps> = ({
                 <h3 className="font-extrabold text-xs text-white flex items-center gap-1">
                   AI 아카이브 Q&A 챗봇
                   <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    SSE STREAM
+                    RAG
                   </span>
                 </h3>
                 <span className="text-[10px] text-slate-400 block">
@@ -182,6 +183,7 @@ export const FloatingChatbot: React.FC<FloatingChatbotProps> = ({
             <button
               onClick={() => setIsOpen(false)}
               className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+              aria-label="챗봇 닫기"
             >
               <X className="w-4 h-4" />
             </button>
@@ -253,12 +255,14 @@ export const FloatingChatbot: React.FC<FloatingChatbotProps> = ({
               onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
               disabled={isStreaming}
               placeholder="아키텍처 및 소스 질문을 입력하세요..."
+              aria-label="질문 입력"
               className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
 
             <button
               onClick={() => handleSendMessage()}
               disabled={isStreaming || !input.trim()}
+              aria-label="질문 보내기"
               className="p-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-xl shadow-xs transition-colors"
             >
               {isStreaming ? (

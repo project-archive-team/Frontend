@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, FolderPlus, Github, HardDrive, BookOpen } from 'lucide-react';
 import { Project } from '../types';
 
@@ -25,6 +25,15 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   const [notionUrl, setNotionUrl] = useState('');
   const [googleDriveUrl, setGoogleDriveUrl] = useState('');
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -50,7 +59,12 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs font-sans animate-fadeIn">
-      <div className="w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden space-y-6">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="new-project-title"
+        className="w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden space-y-6"
+      >
         
         {/* Header */}
         <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
@@ -59,7 +73,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
               <FolderPlus className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">새 프로젝트 아카이브 등록</h2>
+              <h2 id="new-project-title" className="text-lg font-bold">새 프로젝트 아카이브 등록</h2>
               <p className="text-xs text-slate-400">외부 산출물을 연동하고 AI 포트폴리오를 설계할 프로젝트를 추가하세요.</p>
             </div>
           </div>
@@ -67,6 +81,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors"
+            aria-label="닫기"
           >
             <X className="w-5 h-5" />
           </button>
@@ -75,8 +90,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 pt-0 space-y-4 max-h-[75vh] overflow-y-auto">
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-slate-700">프로젝트명 *</label>
-            <input
+            <label className="block text-xs font-bold text-slate-700" htmlFor="newproj-1">프로젝트명 *</label>
+            <input id="newproj-1"
               type="text"
               required
               value={title}
@@ -88,8 +103,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">카테고리</label>
-              <input
+              <label className="block text-xs font-bold text-slate-700" htmlFor="newproj-2">카테고리</label>
+              <input id="newproj-2"
                 type="text"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
@@ -99,8 +114,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">진행 상태</label>
-              <select
+              <label className="block text-xs font-bold text-slate-700" htmlFor="newproj-3">진행 상태</label>
+              <select id="newproj-3"
                 value={status}
                 onChange={(e: any) => setStatus(e.target.value)}
                 className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
@@ -113,8 +128,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">본인 역할</label>
-              <input
+              <label className="block text-xs font-bold text-slate-700" htmlFor="newproj-4">본인 역할</label>
+              <input id="newproj-4"
                 type="text"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
@@ -124,8 +139,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">팀 규모</label>
-              <input
+              <label className="block text-xs font-bold text-slate-700" htmlFor="newproj-5">팀 규모</label>
+              <input id="newproj-5"
                 type="text"
                 value={teamSize}
                 onChange={(e) => setTeamSize(e.target.value)}
@@ -135,8 +150,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">진행 기간</label>
-              <input
+              <label className="block text-xs font-bold text-slate-700" htmlFor="newproj-6">진행 기간</label>
+              <input id="newproj-6"
                 type="text"
                 value={period}
                 onChange={(e) => setPeriod(e.target.value)}
@@ -147,8 +162,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-slate-700">기술 스택 (쉼표 구문)</label>
-            <input
+            <label className="block text-xs font-bold text-slate-700" htmlFor="newproj-7">기술 스택 (쉼표 구문)</label>
+            <input id="newproj-7"
               type="text"
               value={techStackInput}
               onChange={(e) => setTechStackInput(e.target.value)}
@@ -158,8 +173,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-slate-700">프로젝트 개요 및 주요 설명</label>
-            <textarea
+            <label className="block text-xs font-bold text-slate-700" htmlFor="newproj-8">프로젝트 개요 및 주요 설명</label>
+            <textarea id="newproj-8"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
