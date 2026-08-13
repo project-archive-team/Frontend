@@ -35,14 +35,17 @@ const TIMELINE_TYPE: Record<ArtifactView['type'], TimelineEvent['type']> = {
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '-';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '-' : d.toISOString().slice(0, 10);
+  // toISOString은 UTC라 한국 시간 자정~오전 9시 사이에 하루 전 날짜가 찍힌다. 보는 사람 시간대로 맞춘다.
+  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString('sv-SE');
 }
 
 function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '-';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '-';
-  return `${d.toISOString().slice(0, 10)} ${d.toTimeString().slice(0, 5)}`;
+  // sv-SE는 YYYY-MM-DD로 떨어져 정렬·표기가 그대로 유지된다.
+  const time = d.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+  return `${d.toLocaleDateString('sv-SE')} ${time}`;
 }
 
 export function toProject(v: ProjectSummaryView, sources: SourceView[] = []): Project {
