@@ -210,7 +210,7 @@ export function toInterviewItem(
     question: q.question,
     sampleAnswer: q.modelAnswer,
     keyCheckingPoints: q.checkpoints,
-    // 화면은 문자열 목록만 받는다 — 권장 답변을 같은 줄에 붙여 정보를 잃지 않게 한다.
-    followUpQuestions: q.followUps.map((f) => `${f.question} → ${f.recommendedAnswer}`),
+    // 화면이 문자열 목록만 받아서 마크다운으로 층을 나눈다 — 한 줄로 이으면 너무 길어 읽기 어렵다.
+    followUpQuestions: q.followUps.map((f) => `**${f.question}**\n\n${f.recommendedAnswer}`),
   };
 }

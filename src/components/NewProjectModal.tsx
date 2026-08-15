@@ -73,7 +73,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
               <FolderPlus className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 id="new-project-title" className="text-lg font-bold">새 프로젝트 아카이브 등록</h2>
+              <h2 id="new-project-title" className="text-lg font-bold">새 프로젝트 등록</h2>
               <p className="text-xs text-slate-400">외부 산출물을 연동하고 AI 포트폴리오를 설계할 프로젝트를 추가하세요.</p>
             </div>
           </div>
@@ -235,7 +235,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
               type="submit"
               className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs"
             >
-              프로젝트 아카이브 생성
+              프로젝트 생성
             </button>
           </div>
         </form>

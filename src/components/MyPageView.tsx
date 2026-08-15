@@ -396,7 +396,7 @@ export const MyPageView: React.FC<MyPageViewProps> = ({ user, onUpdateUser }) =>
             <div>
               <label className="block text-xs font-bold text-slate-800 mb-1.5" htmlFor="mypage-5">주요 기술 스택 설정 (Tech Stack)</label>
               <p className="text-xs text-slate-500 mb-3">
-                프로젝트 아카이브 분석 시 보유 기술과 대조할 핵심 스택 태그를 등록하세요.
+                프로젝트 분석 시 보유 기술과 대조할 핵심 스택 태그를 등록하세요.
               </p>
 
               {/* Tag Badges */}

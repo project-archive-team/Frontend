@@ -13,10 +13,12 @@ import {
 } from 'lucide-react';
 import { ChatMessage, Project, ProjectArtifact } from '../types';
 import { apiService } from '../services/api';
+import { Markdown } from './Markdown';
 
 interface FloatingChatbotProps {
   projects: Project[];
   selectedProjectId: string;
+  setSelectedProjectId: (id: string) => void;
   artifacts: ProjectArtifact[];
 }
 
@@ -30,6 +32,7 @@ const WELCOME_MESSAGE: ChatMessage = {
 export const FloatingChatbot: React.FC<FloatingChatbotProps> = ({
   projects,
   selectedProjectId,
+  setSelectedProjectId,
   artifacts,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -174,9 +177,19 @@ export const FloatingChatbot: React.FC<FloatingChatbotProps> = ({
                     RAG
                   </span>
                 </h3>
-                <span className="text-[10px] text-slate-400 block">
-                  맥락: {currentProject?.title}
-                </span>
+                <select
+                  value={selectedProjectId}
+                  onChange={(e) => setSelectedProjectId(e.target.value)}
+                  aria-label="질문할 프로젝트 선택"
+                  className="mt-0.5 max-w-[180px] bg-slate-800 border border-slate-700 text-slate-200 text-[10px] rounded-md px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                >
+                  {projects.length === 0 && <option value="">프로젝트 없음</option>}
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -232,7 +245,13 @@ export const FloatingChatbot: React.FC<FloatingChatbotProps> = ({
                       : 'bg-white border border-slate-200/80 text-slate-800 shadow-xs rounded-tl-none'
                   }`}
                 >
-                  <p className="leading-relaxed whitespace-pre-wrap">{msg.text || (msg.isStreaming ? '답변을 생성 중입니다...' : '')}</p>
+                  {msg.sender === 'assistant' && msg.text ? (
+                    <Markdown>{msg.text}</Markdown>
+                  ) : (
+                    <p className="leading-relaxed whitespace-pre-wrap">
+                      {msg.text || (msg.isStreaming ? '답변을 생성 중입니다...' : '')}
+                    </p>
+                  )}
                   <span
                     className={`block text-[9px] ${
                       msg.sender === 'user' ? 'text-slate-400 text-right' : 'text-slate-400'

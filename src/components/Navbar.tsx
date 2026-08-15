@@ -73,7 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <FolderKanban className="w-5 h-5" />
           </div>
           <span className="font-extrabold text-slate-900 dark:text-slate-100 text-sm tracking-tight whitespace-nowrap break-keep">
-            프로젝트 아카이브
+            devlog
           </span>
         </div>
 
@@ -239,13 +239,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <div className="min-w-0">
                 <span className="font-extrabold text-slate-900 dark:text-slate-100 text-base tracking-tight flex items-center gap-1.5 whitespace-nowrap break-keep">
-                  프로젝트 아카이브
+                  devlog
                   <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 uppercase tracking-wider shrink-0">
                     AI PRO
                   </span>
                 </span>
                 <span className="block text-[11px] text-slate-400 dark:text-slate-500 font-medium truncate mt-0.5 whitespace-nowrap">
-                  AI Portfolio Architecture
+                  개발 기록에서 포트폴리오까지
                 </span>
               </div>
             </div>

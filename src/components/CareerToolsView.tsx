@@ -15,6 +15,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { Project, CoverLetterQA, InterviewPrepItem } from '../types';
+import { Markdown } from './Markdown';
 
 interface CareerToolsViewProps {
   projects: Project[];
@@ -203,33 +204,30 @@ export const CareerToolsView: React.FC<CareerToolsViewProps> = ({
                   </button>
                 </div>
 
-                {/* STAR Breakdown Box */}
+                {/* STAR Breakdown — 4단 그리드에 넣으면 칸이 좁아 한 줄에 서너 글자씩 끊긴다. 세로로 편다. */}
                 {cl.starBreakdown && (
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="font-bold text-amber-700 block mb-1">Situation (상황)</span>
-                    <p className="text-slate-700 leading-relaxed">{cl.starBreakdown.situation}</p>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="font-bold text-slate-800 block mb-1">Task (과제)</span>
-                    <p className="text-slate-700 leading-relaxed">{cl.starBreakdown.task}</p>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <span className="font-bold text-slate-900 block mb-1">Action (행동)</span>
-                    <p className="text-slate-700 leading-relaxed">{cl.starBreakdown.action}</p>
-                  </div>
-                  <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-                    <span className="font-bold text-emerald-800 block mb-1">Result (성과)</span>
-                    <p className="text-emerald-950 font-semibold leading-relaxed">{cl.starBreakdown.result}</p>
-                  </div>
+                <div className="space-y-2 text-xs">
+                  {([
+                    ['S', 'Situation (상황)', cl.starBreakdown.situation, 'text-amber-700', 'bg-slate-50 border-slate-200'],
+                    ['T', 'Task (과제)', cl.starBreakdown.task, 'text-slate-800', 'bg-slate-50 border-slate-200'],
+                    ['A', 'Action (행동)', cl.starBreakdown.action, 'text-slate-900', 'bg-slate-50 border-slate-200'],
+                    ['R', 'Result (성과)', cl.starBreakdown.result, 'text-emerald-800', 'bg-emerald-50 border-emerald-200'],
+                  ] as const).map(([key, label, text, labelColor, box]) => (
+                    <div key={key} className={`p-3.5 rounded-xl border ${box} flex flex-col sm:flex-row sm:gap-4`}>
+                      <span className={`font-bold ${labelColor} shrink-0 sm:w-32 mb-1 sm:mb-0`}>{label}</span>
+                      <div className="text-slate-700 flex-1 min-w-0">
+                        <Markdown>{text}</Markdown>
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 )}
 
                 {/* Generated Answer Body */}
                 <div className="space-y-2">
                   <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">생성된 완성본 답변</span>
-                  <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
-                    {cl.generatedAnswer}
+                  <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-800 font-sans">
+                    <Markdown>{cl.generatedAnswer}</Markdown>
                   </div>
                 </div>
               </div>
@@ -302,8 +300,8 @@ export const CareerToolsView: React.FC<CareerToolsViewProps> = ({
                       </button>
                     </div>
 
-                    <div className="p-5 bg-emerald-50/60 rounded-2xl border border-emerald-200/80 text-xs text-slate-800 leading-relaxed font-sans whitespace-pre-wrap">
-                      {item.sampleAnswer}
+                    <div className="p-5 bg-emerald-50/60 rounded-2xl border border-emerald-200/80 text-xs text-slate-800 font-sans">
+                      <Markdown>{item.sampleAnswer}</Markdown>
                     </div>
                   </div>
 
@@ -322,7 +320,9 @@ export const CareerToolsView: React.FC<CareerToolsViewProps> = ({
                       <span className="font-bold text-slate-800 block">💬 예상 꼬리 질문 (Follow-up)</span>
                       <ul className="space-y-1 text-slate-600 list-disc list-inside">
                         {item.followUpQuestions.map((fq, i) => (
-                          <li key={i}>{fq}</li>
+                          <li key={i}>
+                            <Markdown className="inline-block align-top">{fq}</Markdown>
+                          </li>
                         ))}
                       </ul>
                     </div>
