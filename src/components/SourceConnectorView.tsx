@@ -680,6 +680,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
                   value={notionWorkspaceInput}
                   onChange={(e) => setNotionWorkspaceInput(e.target.value)}
                   placeholder="예: 가천대학교 학술제 워크스페이스"
+                  autoComplete="off"
                   className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
                 />
               </div>
@@ -691,7 +692,8 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
                   required
                   value={notionTokenInput}
                   onChange={(e) => setNotionTokenInput(e.target.value)}
-                  placeholder="secret_notion_xxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  placeholder="secret_ 또는 ntn_ 으로 시작하는 Integration 토큰"
+                  autoComplete="new-password"
                   className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
                 />
               </div>
