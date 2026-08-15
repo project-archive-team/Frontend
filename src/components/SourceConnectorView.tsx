@@ -80,11 +80,18 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
   const currentArtifacts = artifacts.filter((a) => a.projectId === selectedProjectId);
   // github/drive 탭은 각자의 소스만 본다. 하나로 뭉쳐 보여주면 Drive 탭에서 GitHub 저장소가 떠서
   // 주소가 고정된 것처럼 보인다.
-  const activeType: SourceView['type'] = activeService === 'github' ? 'GITHUB' : 'GDRIVE';
+  const activeType: SourceView['type'] =
+    activeService === 'github' ? 'GITHUB' : activeService === 'notion' ? 'NOTION' : 'GDRIVE';
   const activeSources = sources.filter((s) => s.type === activeType);
   const activeSourceRef = activeSources[0]?.externalRef;
-  const activeLabel = activeService === 'github' ? 'GitHub' : 'Google Drive';
-  const activeConnected = activeService === 'github' ? Boolean(connected?.github) : Boolean(connected?.googleDrive);
+  const activeLabel =
+    activeService === 'github' ? 'GitHub' : activeService === 'notion' ? 'Notion' : 'Google Drive';
+  const activeConnected =
+    activeService === 'github'
+      ? Boolean(connected?.github)
+      : activeService === 'notion'
+      ? Boolean(connected?.notion)
+      : Boolean(connected?.googleDrive);
 
   // 백엔드가 워크스페이스 이름을 저장하지 않는다 — 토큰 보유 여부만 사실대로 보여준다.
   const notionStatus = {
@@ -137,7 +144,8 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
   const handleAddSource = async (e: React.FormEvent) => {
     e.preventDefault();
     const ref = sourceRefInput.trim();
-    if (!ref) return;
+    // Notion은 대상을 비워두면 integration에 공유된 페이지 전체를 긁는다. 나머지는 주소가 있어야 한다.
+    if (!ref && activeType !== 'NOTION') return;
     if (!selectedProjectId) {
       setDialog({
         title: '프로젝트가 필요합니다',
@@ -150,7 +158,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
     try {
       const added = await apiService.projects.addSource(Number(selectedProjectId), {
         type: activeType,
-        externalRef: ref,
+        externalRef: ref || null,
       });
       setSourceRefInput('');
       await onSyncFinished();
@@ -181,6 +189,15 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
    * 사용자가 주소를 다시 치지 않는다.
    */
   const promptLogin = (reason: string, pendingRef?: string) => {
+    // Notion은 OAuth가 아니라 토큰 붙여넣기라 로그인 화면으로 보낼 곳이 없다.
+    if (activeService === 'notion') {
+      setDialog({
+        title: 'Notion 토큰이 필요합니다',
+        message: `${reason}\n\n위 입력란에 Integration 토큰을 먼저 저장해 주세요.`,
+        noticeOnly: true,
+      });
+      return;
+    }
     const provider = activeService === 'github' ? ('github' as const) : ('google' as const);
     setDialog({
       title: `${activeLabel} 로그인이 필요합니다`,
@@ -687,6 +704,96 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
                 {isSavingNotion ? '토큰 저장 중...' : 'Notion 통합 토큰 저장'}
               </button>
             </form>
+
+            {/*
+              토큰만 저장하면 아무것도 수집되지 않는다. 무엇을 긁을지 소스로 등록해야
+              동기화가 Notion을 쳐다본다 — 이 화면이 없어서 연동해도 자료가 안 들어왔다.
+            */}
+            <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 text-xs text-slate-700">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 mb-1">수집 대상 페이지</h3>
+                <p className="leading-relaxed text-slate-500">
+                  페이지 주소를 넣으면 그 페이지만, 비워두고 등록하면 integration에 공유된 페이지 전체를 수집합니다.
+                  어느 쪽이든 Notion에서 <strong>페이지 우상단 [...] → 연결(Connections)</strong>로 integration을 추가해야 읽을 수 있습니다.
+                </p>
+              </div>
+
+              <form onSubmit={handleAddSource} className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={sourceRefInput}
+                  onChange={(e) => setSourceRefInput(e.target.value)}
+                  placeholder="https://www.notion.so/... (비우면 공유된 페이지 전체)"
+                  className="flex-1 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+                <button
+                  type="submit"
+                  disabled={isSavingSource}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold text-xs rounded-xl transition-colors shrink-0"
+                >
+                  {isSavingSource ? '등록 중...' : '수집 대상 등록'}
+                </button>
+              </form>
+
+              {activeSources.length > 0 && (
+                <div className="space-y-1.5">
+                  {activeSources.map((src) => (
+                    <div key={src.id} className="flex items-center justify-between gap-3">
+                      <span className="font-semibold text-slate-800">NOTION</span>
+                      <span className="text-slate-500 truncate flex-1">
+                        {src.externalRef || '공유된 페이지 전체'}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveSource(src.id)}
+                        className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                        title="수집 대상 삭제"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <span
+                        className={
+                          src.status === 'FAILED'
+                            ? 'font-bold text-rose-600'
+                            : src.status === 'DONE'
+                            ? 'font-bold text-emerald-600'
+                            : 'font-bold text-slate-500'
+                        }
+                        title={src.message || undefined}
+                      >
+                        {src.status}
+                      </span>
+                    </div>
+                  ))}
+                  {activeSources.some((src) => src.status === 'FAILED') && (
+                    <p className="text-rose-600 pt-1 leading-relaxed">
+                      {activeSources.find((src) => src.status === 'FAILED')?.message}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <button
+                onClick={handleTriggerAsyncSync}
+                disabled={isSyncingAsync}
+                className="px-4 py-2.5 bg-slate-900 text-white font-bold rounded-xl flex items-center gap-2 hover:bg-slate-800 shadow-xs disabled:opacity-40"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingAsync ? 'animate-spin' : ''}`} />
+                <span>소스 데이터 동기화 시작</span>
+              </button>
+
+              {isSyncingAsync && (
+                <div className="p-4 bg-slate-900 text-white rounded-xl space-y-2">
+                  <div className="flex justify-between font-bold text-xs">
+                    <span>소스 수집 파이프라인 진행 중</span>
+                    <span>{syncProgress}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="bg-emerald-400 h-full transition-all duration-300" style={{ width: `${syncProgress}%` }} />
+                  </div>
+                  <p className="text-[11px] text-slate-300 font-mono">{syncMessage}</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -731,7 +838,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
                 />
                 <button
                   type="submit"
-                  disabled={isSavingSource || !sourceRefInput.trim()}
+                  disabled={isSavingSource || (!sourceRefInput.trim() && activeType !== 'NOTION')}
                   className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold text-xs rounded-xl transition-colors shrink-0"
                 >
                   {isSavingSource ? '등록 중...' : '수집 대상 등록'}
