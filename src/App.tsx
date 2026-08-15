@@ -501,7 +501,7 @@ export default function App() {
         {/* Footer */}
         <footer className="w-full bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800/80 py-5 text-center text-xs text-slate-500 dark:text-slate-400 font-medium mt-auto transition-colors duration-200">
           <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <span className="whitespace-nowrap">© 2026 devlog — 개발 기록 아카이빙 및 AI 포트폴리오 생성</span>
+            <span className="whitespace-nowrap">© 2026 DevLog — 개발 기록 아카이빙 및 AI 포트폴리오 생성</span>
             <span className="whitespace-nowrap text-slate-400">Powered by Gemini</span>
           </div>
         </footer>

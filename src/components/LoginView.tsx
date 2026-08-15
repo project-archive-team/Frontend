@@ -175,7 +175,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
         {/* Footer info inside panel */}
         <div className="relative z-10 w-full max-w-xl mx-auto mt-12 pt-6 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-          <span>© 2026 devlog</span>
+          <span>© 2026 DevLog</span>
           <span className="flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-slate-300" /> Secure OAuth 2.0 Integration</span>
         </div>
       </div>
