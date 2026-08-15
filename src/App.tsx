@@ -126,22 +126,28 @@ export default function App() {
 
   // 2. 연동 상태는 백엔드가 실제로 토큰을 들고 있는지로 판단한다.
   const refreshIntegrations = useCallback(async () => {
-    try {
-      const status = await apiService.integrations.status();
-      setUser((prev) =>
-        prev
-          ? {
-              ...prev,
-              connectedServices: {
-                github: status.github,
-                googleDrive: status.google,
-                notion: status.notion,
-              },
-            }
-          : prev
-      );
-    } catch (err) {
-      console.warn('연동 상태 조회 실패', err);
+    // 한 번 실패했다고 "전부 미연결"로 두면 화면이 거짓말을 한다. 한 번 더 시도하고,
+    // 그래도 안 되면 직전 값을 유지한다 — 실제로 저장된 토큰이 사라진 것처럼 보였다.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const status = await apiService.integrations.status();
+        setUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                connectedServices: {
+                  github: status.github,
+                  googleDrive: status.google,
+                  notion: status.notion,
+                },
+              }
+            : prev
+        );
+        return;
+      } catch (err) {
+        console.warn('연동 상태 조회 실패', err);
+        await sleep(1000);
+      }
     }
   }, []);
 

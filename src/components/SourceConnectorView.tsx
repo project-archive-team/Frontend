@@ -228,56 +228,52 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
   };
 
   /**
-   * 이 프로젝트가 실제로 등록한 소스 중 아직 계정이 연결되지 않은 게 있으면 여기서 연결시킨다.
+   * 동기화를 시작해도 되는지만 본다.
    *
-   * GitHub/Google은 OAuth라 페이지를 떠났다 돌아온다 — 돌아왔을 때 이 화면으로 복귀하도록
-   * 목적지를 남겨둔다. Notion은 토큰 붙여넣기라 같은 화면의 탭만 바꾼다.
-   *
-   * @returns 동기화를 계속해도 되면 true
+   * 예전에는 등록된 소스 중 하나라도 계정이 연결돼 있지 않으면 전체를 막았다. 그러면 GitHub을
+   * 연결하지 않은 사람이 Notion만 수집하려 해도 "GitHub 로그인 필요"에 걸려 아무것도 못 한다.
+   * 연결 여부 판단은 서버가 소스별로 하고(안 된 소스만 FAILED), 여기서는 대상 유무만 확인한다.
    */
-  const ensureConnected = (): boolean => {
-    const need = (type: SourceView['type']) => sources.some((s) => s.type === type);
-
+  const ensureSyncable = (): boolean => {
     if (sources.length === 0) {
       setDialog({
         title: '수집 대상이 없습니다',
         message:
-          '이 프로젝트에 등록된 수집 대상이 하나도 없습니다.\n아래 입력란에 저장소 주소를 등록한 뒤 다시 동기화해 주세요.',
+          '이 프로젝트에 등록된 수집 대상이 하나도 없습니다.\n주소를 등록한 뒤 다시 동기화해 주세요.',
         noticeOnly: true,
       });
       return false;
     }
+    return true;
+  };
 
-    if (need('NOTION') && !connected?.notion) {
+  /** 자격 증명이 없어 실패한 소스가 있으면 그 자리에서 연결하도록 안내한다. */
+  const offerConnect = (failed: SourceView[]) => {
+    const missing = failed.find((f) => (f.message ?? '').includes('연결되지 않았습니다'));
+    if (!missing) return;
+
+    if (missing.type === 'NOTION') {
       setActiveService('notion');
       setDialog({
         title: 'Notion 토큰이 필요합니다',
-        message:
-          'Notion은 OAuth가 아니라 Integration 토큰으로 연결합니다.\n아래 입력란에 토큰을 저장한 뒤 다시 동기화해 주세요.',
+        message: 'Notion 수집 대상이 있는데 Integration 토큰이 없습니다.\n아래 입력란에 토큰을 저장한 뒤 다시 동기화해 주세요.',
         noticeOnly: true,
       });
-      return false;
+      return;
     }
 
-    const missing = need('GITHUB') && !connected?.github
-      ? { provider: 'github' as const, label: 'GitHub' }
-      : need('GDRIVE') && !connected?.googleDrive
-      ? { provider: 'google' as const, label: 'Google' }
-      : null;
-
-    if (!missing) return true;
-
+    const provider = missing.type === 'GITHUB' ? ('github' as const) : ('google' as const);
+    const label = missing.type === 'GITHUB' ? 'GitHub' : 'Google';
     setDialog({
-      title: `${missing.label} 로그인이 필요합니다`,
-      message: `${missing.label} 계정이 연결되어 있지 않아 수집할 수 없습니다.\n로그인하면 이 화면으로 돌아와 바로 동기화할 수 있습니다.`,
-      confirmLabel: `${missing.label}로 로그인`,
+      title: `${label} 연결이 필요합니다`,
+      message: `${label} 수집 대상이 있는데 계정이 연결되어 있지 않아 그 소스만 건너뛰었습니다.\n연결하면 이 화면으로 돌아옵니다.`,
+      confirmLabel: `${label} 연결하기`,
       onConfirm: () => {
         sessionStorage.setItem('return_tab', 'connectors');
-        sessionStorage.setItem('return_service', missing.provider === 'github' ? 'github' : 'drive');
-        apiService.auth.linkProvider(missing.provider);
+        sessionStorage.setItem('return_service', missing.type === 'GITHUB' ? 'github' : 'drive');
+        apiService.auth.linkProvider(provider);
       },
     });
-    return false;
   };
 
   /**
@@ -297,7 +293,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
     const projectId = Number(selectedProjectId);
 
     // 토큰이 없으면 수집기가 소스를 FAILED로 떨구고 끝난다. 돌리기 전에 연결부터 잡는다.
-    if (!ensureConnected()) return;
+    if (!ensureSyncable()) return;
 
     setIsSyncingAsync(true);
     setSyncProgress(5);
@@ -346,6 +342,8 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
             : '수집 완료! 최신 산출물이 반영되었습니다.'
         );
         await onSyncFinished();
+        // 자격 증명이 없어 실패한 게 있으면 바로 연결하도록 안내한다.
+        offerConnect(failed);
         // 실패 메시지는 사용자가 읽을 시간을 준다.
         pollTimer.current = window.setTimeout(() => {
           setIsSyncingAsync(false);
