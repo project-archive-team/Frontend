@@ -145,7 +145,17 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
     e.preventDefault();
     const ref = sourceRefInput.trim();
     // Notion은 대상을 비워두면 integration에 공유된 페이지 전체를 긁는다. 나머지는 주소가 있어야 한다.
-    if (!ref && activeType !== 'NOTION') return;
+    if (!ref && activeType !== 'NOTION') {
+      setDialog({
+        title: '주소를 입력해 주세요',
+        message:
+          activeType === 'GITHUB'
+            ? '저장소 주소 또는 조직 주소가 필요합니다.\n예: https://github.com/org/repo'
+            : 'Google Drive 폴더 주소 또는 폴더 ID가 필요합니다.',
+        noticeOnly: true,
+      });
+      return;
+    }
     if (!selectedProjectId) {
       setDialog({
         title: '프로젝트가 필요합니다',
@@ -162,7 +172,13 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
       });
       setSourceRefInput('');
       await onSyncFinished();
-      if (added.length > 1) {
+      if (added.length === 1) {
+        setDialog({
+          title: '수집 대상을 등록했습니다',
+          message: `${added[0].type}: ${added[0].externalRef ?? '공유된 페이지 전체'}\n\n[소스 데이터 동기화 시작]을 누르면 수집합니다.`,
+          noticeOnly: true,
+        });
+      } else if (added.length > 1) {
         setDialog({
           title: `저장소 ${added.length}개를 등록했습니다`,
           message: `조직 아래 저장소를 각각의 수집 대상으로 나눴습니다.\n\n${added
@@ -838,7 +854,7 @@ export const SourceConnectorView: React.FC<SourceConnectorViewProps> = ({
                 />
                 <button
                   type="submit"
-                  disabled={isSavingSource || (!sourceRefInput.trim() && activeType !== 'NOTION')}
+                  disabled={isSavingSource}
                   className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold text-xs rounded-xl transition-colors shrink-0"
                 >
                   {isSavingSource ? '등록 중...' : '수집 대상 등록'}
